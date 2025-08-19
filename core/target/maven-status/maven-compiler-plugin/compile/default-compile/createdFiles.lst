@@ -1,0 +1,14 @@
+org\geyserupdater\core\UpdaterService$UpdateOutcome.class
+org\geyserupdater\core\UpdaterService$1.class
+org\geyserupdater\core\ConfigManager.class
+org\geyserupdater\core\Platform.class
+org\geyserupdater\core\Config.class
+org\geyserupdater\core\logging\LogAdapter.class
+org\geyserupdater\core\util\FileUtils.class
+org\geyserupdater\core\UpdaterService.class
+org\geyserupdater\core\Config$PostUpdate.class
+org\geyserupdater\core\Config$AdminLogin.class
+org\geyserupdater\core\Project.class
+org\geyserupdater\core\Config$Targets.class
+org\geyserupdater\core\Config$Messages.class
+org\geyserupdater\core\Config$Periodic.class

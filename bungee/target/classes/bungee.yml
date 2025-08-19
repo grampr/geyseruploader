@@ -1,0 +1,11 @@
+name: GeyserUpdater
+main: org.geyserupdater.bungee.BungeeGeyserUpdaterPlugin
+version: 1.0.0
+author: YourName
+commands:
+  geyserupdate:
+    description: Geyser/Floodgateの更新チェックを実行します
+permissions:
+  geyserupdater.admin:
+    description: GeyserUpdaterの管理コマンドを実行できます
+    default: false

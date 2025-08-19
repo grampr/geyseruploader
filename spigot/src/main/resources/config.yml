@@ -1,0 +1,32 @@
+# 初回起動時に core のデフォルトから自動生成されますが、
+# ここに置いておくことで手動導入時も同じ初期値になります
+enabled: true
+checkOnStartup: true
+periodic:
+  enabled: true
+  intervalHours: 12
+adminLogin:
+  enabled: true
+  permission: geyserupdater.admin
+targets:
+  geyser: true
+  floodgate: true
+postUpdate:
+  notifyConsole: true
+  notifyPlayersWithPermission: true
+  runRestartCommand: false
+  restartCommand: "restart"
+messages:
+  prefix: "§a[GeyserUpdater]§r "
+  checking: "更新を確認しています..."
+  upToDate: "{project} は最新です。"
+  updated: "{project} を最新ビルドに更新しました。"
+  noTarget: "更新対象のプロジェクトが有効化されていません。"
+  failed: "{project} の更新に失敗しました: {error}"
+  promptRestart: "更新が適用されました。サーバーの再起動が必要です。"
+  startUpCheck: "起動時の自動更新チェックを開始します。"
+  periodicCheck: "定期更新チェックをスケジュールしました（{hours}時間ごと）。"
+  adminLoginCheck: "権限保持者のログインを検知し、更新チェックを実行します。"
+  manualTriggered: "手動の更新チェックを開始します。"
+  nothingToDo: "有効な対象がありません。config.yml をご確認ください。"
+  done: "更新チェックが完了しました。"
