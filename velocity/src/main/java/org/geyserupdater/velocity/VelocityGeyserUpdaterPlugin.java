@@ -1,5 +1,6 @@
 package org.geyserupdater.velocity;
 
+import com.google.inject.Inject;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.event.Subscribe;
@@ -14,7 +15,6 @@ import org.geyserupdater.core.Platform;
 import org.geyserupdater.core.UpdaterService;
 import org.geyserupdater.core.logging.LogAdapter;
 
-import javax.inject.Inject;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
