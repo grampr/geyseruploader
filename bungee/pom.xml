@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
   <parent>
     <groupId>org.geyserupdater</groupId>
     <artifactId>geyserupdater-parent</artifactId>
     <version>1.0.0</version>
   </parent>
+
   <modelVersion>4.0.0</modelVersion>
   <artifactId>bungee</artifactId>
   <name>GeyserUpdater Bungee</name>
+
+  <properties>
+    <snakeyaml.version>1.33</snakeyaml.version>
+    <shade.plugin.version>3.5.0</shade.plugin.version>
+  </properties>
 
   <dependencies>
     <dependency>
@@ -24,7 +32,7 @@
     <dependency>
       <groupId>net.md-5</groupId>
       <artifactId>bungeecord-api</artifactId>
-      <version>1.20-R0.1-SNAPSHOT</version>
+      <version>1.21-R0.3</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>
@@ -36,6 +44,7 @@
         <filtering>false</filtering>
       </resource>
     </resources>
+
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -44,7 +53,9 @@
         <executions>
           <execution>
             <phase>package</phase>
-            <goals><goal>shade</goal></goals>
+            <goals>
+              <goal>shade</goal>
+            </goals>
             <configuration>
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <minimizeJar>false</minimizeJar>
@@ -54,4 +65,5 @@
       </plugin>
     </plugins>
   </build>
+
 </project>
