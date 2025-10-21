@@ -3,6 +3,6 @@
   "name": "GeyserUpdater",
   "version": "1.0.0",
   "description": "Auto-updater for GeyserMC and Floodgate",
-  "authors": ["YourName"],
+  "authors": ["neha"],
   "main": "org.geyserupdater.velocity.VelocityGeyserUpdaterPlugin"
 }
