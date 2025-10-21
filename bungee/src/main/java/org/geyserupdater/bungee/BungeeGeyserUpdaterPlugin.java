@@ -29,6 +29,9 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
 
+        // マイグレーションを実行
+        migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent());
+
         getProxy().getPluginManager().registerListener(this, this);
         getProxy().getPluginManager().registerCommand(this, new UpdateCommand());
 
@@ -58,7 +61,7 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
             } else {
                 info(cfg.messages.checking);
             }
-            Path pluginsDir = getDataFolder().toPath().getParent().resolve("plugins");
+            Path pluginsDir = getDataFolder().toPath().getParent(); // これが plugins 直下
             List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.BUNGEECORD, pluginsDir);
 
             boolean anyUpdated = false;
@@ -112,13 +115,64 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
         else info(msg);
     }
 
-    private void info(String msg) {
-        getLogger().info(msg);
+        private void info(String msg) {
+
+            getLogger().info(msg);
+
+        }
+
+    
+
+        private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
+
+            Path nested = correctPluginsDir.resolve("plugins");
+
+            if (!java.nio.file.Files.isDirectory(nested)) return;
+
+            try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
+
+                s.filter(p -> {
+
+                    String name = p.getFileName().toString().toLowerCase();
+
+                    return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
+
+                }).forEach(p -> {
+
+                    try {
+
+                        java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
+
+                        java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+                    } catch (Exception ex) {
+
+                        getLogger().warning("Failed to move " + p + " : " + ex.getMessage());
+
+                    }
+
+                });
+
+            } catch (Exception ex) {
+
+                getLogger().warning("Migration scan failed: " + ex.getMessage());
+
+            }
+
+        }
+
+    
+
+        private class BungeeLogger implements LogAdapter {
+
+            @Override public void info(String msg) { getLogger().info(msg); }
+
+            @Override public void warn(String msg) { getLogger().warning(msg); }
+
+            @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
+
+        }
+
     }
 
-    private class BungeeLogger implements LogAdapter {
-        @Override public void info(String msg) { getLogger().info(msg); }
-        @Override public void warn(String msg) { getLogger().warning(msg); }
-        @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
-    }
-}
+    

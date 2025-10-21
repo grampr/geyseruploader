@@ -23,7 +23,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "geyserupdater",
         name = "GeyserUpdater",
-        version = "1.0.0",
+        version = "1.0.1",
         description = "Auto-updater for GeyserMC and Floodgate"
 )
 public class VelocityGeyserUpdaterPlugin {
@@ -50,6 +50,9 @@ public class VelocityGeyserUpdaterPlugin {
         }
         this.cfgMgr = new ConfigManager(dataDir);
         this.cfg = cfgMgr.loadOrCreateDefault();
+
+        // マイグレーションを実行
+        migrateNestedPluginsIfNeeded(dataDir.getParent());
 
         // コマンド登録
         proxy.getCommandManager().register(
@@ -86,7 +89,7 @@ public class VelocityGeyserUpdaterPlugin {
             } else {
                 logger.info(cfg.messages.checking);
             }
-            Path pluginsDir = dataDir.getParent().resolve("plugins");
+            Path pluginsDir = dataDir.getParent(); // これが plugins 直下
             List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.VELOCITY, pluginsDir);
 
             boolean anyUpdated = false;
@@ -144,6 +147,26 @@ public class VelocityGeyserUpdaterPlugin {
     private void send(CommandSource sender, String msg) {
         if (sender != null) sender.sendMessage(Component.text(msg));
         else logger.info(msg);
+    }
+
+    private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
+        Path nested = correctPluginsDir.resolve("plugins");
+        if (!java.nio.file.Files.isDirectory(nested)) return;
+        try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
+            s.filter(p -> {
+                String name = p.getFileName().toString().toLowerCase();
+                return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
+            }).forEach(p -> {
+                try {
+                    java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
+                    java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (Exception ex) {
+                    logger.warning("Failed to move " + p + " : " + ex.getMessage());
+                }
+            });
+        } catch (Exception ex) {
+            logger.warning("Migration scan failed: " + ex.getMessage());
+        }
     }
 
     private class VelocityLogger implements LogAdapter {

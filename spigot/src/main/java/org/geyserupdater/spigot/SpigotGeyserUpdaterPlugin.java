@@ -28,6 +28,9 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
 
+        // マイグレーションを実行
+        migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent());
+
         getServer().getPluginManager().registerEvents(this, this);
 
         if (!cfg.enabled) {
@@ -64,8 +67,9 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
             } else {
                 info(cfg.messages.checking);
             }
+            Path pluginsDir = getDataFolder().toPath().getParent(); // これが plugins 直下
             List<UpdaterService.UpdateOutcome> results =
-                    service.checkAndUpdate(Platform.SPIGOT, getDataFolder().toPath().getParent().resolve("plugins"));
+                    service.checkAndUpdate(Platform.SPIGOT, pluginsDir);
 
             boolean anyUpdated = false;
             for (UpdaterService.UpdateOutcome r : results) {
@@ -126,13 +130,34 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
             sender.sendMessage(cfg.messages.prefix + "権限がありません。");
             return true;
         }
-        runAsyncCheck(true, sender);
-        return true;
-    }
-
-    private class SpigotLogger implements LogAdapter {
-        @Override public void info(String msg) { getLogger().info(msg); }
-        @Override public void warn(String msg) { getLogger().warning(msg); }
-        @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
-    }
-}
+                runAsyncCheck(true, sender);
+                return true;
+            }
+        
+            private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
+                Path nested = correctPluginsDir.resolve("plugins");
+                if (!java.nio.file.Files.isDirectory(nested)) return;
+                try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
+                    s.filter(p -> {
+                        String name = p.getFileName().toString().toLowerCase();
+                        return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
+                    }).forEach(p -> {
+                        try {
+                            java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
+                            java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        } catch (Exception ex) {
+                            getLogger().warning("Failed to move " + p + " : " + ex.getMessage());
+                        }
+                    });
+                } catch (Exception ex) {
+                    getLogger().warning("Migration scan failed: " + ex.getMessage());
+                }
+            }
+        
+            private class SpigotLogger implements LogAdapter {
+                @Override public void info(String msg) { getLogger().info(msg); }
+                @Override public void warn(String msg) { getLogger().warning(msg); }
+                @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
+            }
+        }
+        
