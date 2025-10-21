@@ -2,7 +2,7 @@ name: GeyserUpdater
 main: org.geyserupdater.spigot.SpigotGeyserUpdaterPlugin
 version: 1.0.0
 api-version: 1.19
-author: YourName
+author: neha
 commands:
   geyserupdate:
     description: Geyser/Floodgateの更新チェックを実行します
