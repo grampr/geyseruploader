@@ -127,7 +127,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("geyserupdate")) return false;
         if (!sender.hasPermission("geyserupdater.admin")) {
-            sender.sendMessage(cfg.messages.prefix + "権限がありません。");
+            sender.sendMessage(cfg.messages.prefix + cfg.messages.noPermission);
             return true;
         }
                 runAsyncCheck(true, sender);

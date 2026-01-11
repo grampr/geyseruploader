@@ -1,3 +1,5 @@
+## language: ja / en / de / ko
+language: ja
 enabled: true
 checkOnStartup: true
 periodic:
@@ -9,22 +11,70 @@ adminLogin:
 targets:
   geyser: true
   floodgate: true
+  mcxboxbroadcast: false
 postUpdate:
   notifyConsole: true
   notifyPlayersWithPermission: true
   runRestartCommand: false
   restartCommand: "restart"
 messages:
-  prefix: "[GeyserUpdater] "
-  checking: "更新を確認しています..."
-  upToDate: "{project} は最新です。"
-  updated: "{project} を最新ビルドに更新しました。"
-  noTarget: "更新対象のプロジェクトが有効化されていません。"
-  failed: "{project} の更新に失敗しました: {error}"
-  promptRestart: "更新が適用されました。プロキシの再起動が必要です。"
-  startUpCheck: "起動時の自動更新チェックを開始します。"
-  periodicCheck: "定期更新チェックをスケジュールしました（{hours}時間ごと）。"
-  adminLoginCheck: "権限保持者のログインを検知し、更新チェックを実行します。"
-  manualTriggered: "手動の更新チェックを開始します。"
-  nothingToDo: "有効な対象がありません。config.yml をご確認ください。"
-  done: "更新チェックが完了しました。"
+  ja:
+    prefix: "[GeyserUpdater] "
+    checking: "更新を確認しています..."
+    upToDate: "{project} は最新です。"
+    updated: "{project} を最新ビルドに更新しました。"
+    noTarget: "更新対象のプロジェクトが有効化されていません。"
+    failed: "{project} の更新に失敗しました: {error}"
+    promptRestart: "更新が適用されました。プロキシの再起動が必要です。"
+    startUpCheck: "起動時の自動更新チェックを開始します。"
+    periodicCheck: "定期更新チェックをスケジュールしました（{hours}時間ごと）。"
+    adminLoginCheck: "権限保持者のログインを検知し、更新チェックを実行します。"
+    manualTriggered: "手動の更新チェックを開始します。"
+    nothingToDo: "有効な対象がありません。config.yml をご確認ください。"
+    done: "更新チェックが完了しました。"
+    noPermission: "権限がありません。"
+  en:
+    prefix: "[GeyserUpdater] "
+    checking: "Checking for updates..."
+    upToDate: "{project} is up to date."
+    updated: "Updated {project} to the latest build."
+    noTarget: "No update targets are enabled."
+    failed: "Failed to update {project}: {error}"
+    promptRestart: "Update applied. Proxy restart is required."
+    startUpCheck: "Starting update check on startup."
+    periodicCheck: "Scheduled periodic update checks (every {hours} hours)."
+    adminLoginCheck: "Detected admin login; running update check."
+    manualTriggered: "Starting manual update check."
+    nothingToDo: "No valid targets. Please check config.yml."
+    done: "Update check completed."
+    noPermission: "You do not have permission."
+  de:
+    prefix: "[GeyserUpdater] "
+    checking: "Suche nach Updates..."
+    upToDate: "{project} ist auf dem neuesten Stand."
+    updated: "{project} auf die neueste Version aktualisiert."
+    noTarget: "Keine Update-Ziele sind aktiviert."
+    failed: "Aktualisierung von {project} fehlgeschlagen: {error}"
+    promptRestart: "Update angewendet. Neustart des Proxys erforderlich."
+    startUpCheck: "Starte Update-Prüfung beim Start."
+    periodicCheck: "Regelmäßige Update-Prüfung geplant (alle {hours} Stunden)."
+    adminLoginCheck: "Admin-Login erkannt; Update-Prüfung wird ausgeführt."
+    manualTriggered: "Manuelle Update-Prüfung gestartet."
+    nothingToDo: "Keine gültigen Ziele. Bitte config.yml prüfen."
+    done: "Update-Prüfung abgeschlossen."
+    noPermission: "Keine Berechtigung."
+  ko:
+    prefix: "[GeyserUpdater] "
+    checking: "업데이트를 확인하는 중..."
+    upToDate: "{project}은(는) 최신 상태입니다."
+    updated: "{project}을(를) 최신 빌드로 업데이트했습니다."
+    noTarget: "업데이트 대상 프로젝트가 활성화되어 있지 않습니다."
+    failed: "{project} 업데이트에 실패했습니다: {error}"
+    promptRestart: "업데이트가 적용되었습니다. 프록시 재시작이 필요합니다."
+    startUpCheck: "시작 시 자동 업데이트 확인을 시작합니다."
+    periodicCheck: "정기 업데이트 확인을 예약했습니다({hours}시간마다)."
+    adminLoginCheck: "권한 보유자 로그인 감지, 업데이트 확인을 실행합니다."
+    manualTriggered: "수동 업데이트 확인을 시작합니다."
+    nothingToDo: "유효한 대상이 없습니다. config.yml을 확인하세요."
+    done: "업데이트 확인이 완료되었습니다."
+    noPermission: "권한이 없습니다."

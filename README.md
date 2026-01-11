@@ -4,12 +4,13 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 
 機能
 - GeyserMC と Floodgate の最新版（安定版）を Jenkins/ダウンロードAPI から取得し、plugins ディレクトリの既存JARを上書き
+- MCXboxBroadcast の最新版（Modrinth）を取得し、Geyser の extensions フォルダへ配置（任意）
 - 自動更新チェック
   - サーバー起動時
   - 指定間隔（例: 12時間）
   - 指定権限保有プレイヤーのログイン時（ON/OFF可）
 - 手動コマンド: /geyserupdate（権限: geyserupdater.admin）
-- メッセージ・対象・間隔・再起動コマンドの設定
+- 言語・メッセージ・対象・間隔・再起動コマンドの設定
 
 ビルド
 - 前提: Java 17, Maven 3.8+
@@ -33,34 +34,40 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 
 設定ファイル（config.yml）
 - enabled: プラグイン有効/無効
+- language: 言語設定（ja / en / de / ko、デフォルト: ja）
 - checkOnStartup: 起動時チェックの有効/無効
 - periodic.enabled: 定期チェックの有効/無効
 - periodic.intervalHours: チェック間隔（時間）
 - adminLogin.enabled: 権限保持者ログイン時チェックの有効/無効
 - adminLogin.permission: トリガーとなる権限（デフォルト: geyserupdater.admin）
-- targets.geyser | targets.floodgate: 更新対象の選択
+- targets.geyser | targets.floodgate | targets.mcxboxbroadcast: 更新対象の選択
 - postUpdate.notifyConsole: コンソールへ通知
 - postUpdate.notifyPlayersWithPermission: 権限保持者にチャットで通知
 - postUpdate.runRestartCommand: 更新後に自動で再起動コマンドを実行
 - postUpdate.restartCommand: 実行する再起動コマンド（例: restart / end）
-- messages.*: 送信メッセージのカスタマイズ
+- messages.<lang>.*: 送信メッセージのカスタマイズ（例: messages.ja.*）
+  - 互換のため、language=ja の場合は従来の messages.* でも読み込み可
 
 動作仕様
 - ダウンロードURL:
   - Geyser: https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/{platform}
   - Floodgate: https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/{platform}
+  - MCXboxBroadcast: https://api.modrinth.com/v2/project/mcxboxbroadcast/version
   - {platform} は spigot | bungeecord | velocity
 - 一時ファイルに最新JARをダウンロードし、既存JARとSHA-256で比較
   - 同一なら上書きせず「最新」と判定
   - 異なれば原子置換で上書き
 - 上書き後はサーバー/プロキシの再起動が必要です
   - 自動再起動を有効にする場合は postUpdate.runRestartCommand を true にし、restartCommand を環境に合わせて設定してください
+ - MCXboxBroadcast は Geyser の extensions フォルダに配置します
+   - 例: plugins/Geyser-Spigot/extensions
 
 注意/既知の制限
 - ネットワーク障害などによりダウンロードが失敗する場合、既存ファイルには影響しません
 - Geyser/Floodgate のファイル名が特殊で plugins 直下以外にある場合は検出できません（plugins直下の *.jar 探索が前提）
+- MCXboxBroadcast の配置先は plugins/Geyser-Spigot/extensions 固定です
 - バージョン番号の表示は行っていません（ハッシュ比較による更新判定）
 
 ライセンス
-- ご希望があれば追って設定可能です（MITなど）
+- Apache License 2.0
 

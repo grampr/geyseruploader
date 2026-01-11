@@ -2,7 +2,8 @@ package org.geyserupdater.core;
 
 public enum Project {
     GEYSER("geyser", "geyser"),
-    FLOODGATE("floodgate", "floodgate");
+    FLOODGATE("floodgate", "floodgate"),
+    MCXBOXBROADCAST("mcxboxbroadcast", "mcxboxbroadcast");
 
     private final String apiName;
     private final String fileHint;

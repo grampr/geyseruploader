@@ -56,6 +56,8 @@ public class ConfigManager {
             // 1階層
             cfg.enabled = asBool(map, "enabled", cfg.enabled);
             cfg.checkOnStartup = asBool(map, "checkOnStartup", cfg.checkOnStartup);
+            cfg.language = Config.normalizeLanguage(asStr(map, "language", cfg.language));
+            cfg.messages = Config.defaultMessagesFor(cfg.language);
 
             // periodic
             Map<String, Object> periodic = asMap(map, "periodic");
@@ -71,6 +73,7 @@ public class ConfigManager {
             Map<String, Object> targets = asMap(map, "targets");
             cfg.targets.geyser = asBool(targets, "geyser", cfg.targets.geyser);
             cfg.targets.floodgate = asBool(targets, "floodgate", cfg.targets.floodgate);
+            cfg.targets.mcxboxbroadcast = asBool(targets, "mcxboxbroadcast", cfg.targets.mcxboxbroadcast);
 
             // postUpdate
             Map<String, Object> postUpdate = asMap(map, "postUpdate");
@@ -81,19 +84,31 @@ public class ConfigManager {
 
             // messages
             Map<String, Object> messages = asMap(map, "messages");
-            cfg.messages.prefix = asStr(messages, "prefix", cfg.messages.prefix);
-            cfg.messages.checking = asStr(messages, "checking", cfg.messages.checking);
-            cfg.messages.upToDate = asStr(messages, "upToDate", cfg.messages.upToDate);
-            cfg.messages.updated = asStr(messages, "updated", cfg.messages.updated);
-            cfg.messages.noTarget = asStr(messages, "noTarget", cfg.messages.noTarget);
-            cfg.messages.failed = asStr(messages, "failed", cfg.messages.failed);
-            cfg.messages.promptRestart = asStr(messages, "promptRestart", cfg.messages.promptRestart);
-            cfg.messages.startUpCheck = asStr(messages, "startUpCheck", cfg.messages.startUpCheck);
-            cfg.messages.periodicCheck = asStr(messages, "periodicCheck", cfg.messages.periodicCheck);
-            cfg.messages.adminLoginCheck = asStr(messages, "adminLoginCheck", cfg.messages.adminLoginCheck);
-            cfg.messages.manualTriggered = asStr(messages, "manualTriggered", cfg.messages.manualTriggered);
-            cfg.messages.nothingToDo = asStr(messages, "nothingToDo", cfg.messages.nothingToDo);
-            cfg.messages.done = asStr(messages, "done", cfg.messages.done);
+            Map<String, Object> languageMessages = asMap(messages, cfg.language);
+            if (languageMessages.isEmpty() && !"ja".equals(cfg.language)) {
+                Map<String, Object> jaMessages = asMap(messages, "ja");
+                if (!jaMessages.isEmpty()) {
+                    languageMessages = jaMessages;
+                }
+            }
+            Map<String, Object> effectiveMessages = languageMessages.isEmpty()
+                    ? ("ja".equals(cfg.language) ? messages : Collections.emptyMap())
+                    : languageMessages;
+
+            cfg.messages.prefix = asStr(effectiveMessages, "prefix", cfg.messages.prefix);
+            cfg.messages.checking = asStr(effectiveMessages, "checking", cfg.messages.checking);
+            cfg.messages.upToDate = asStr(effectiveMessages, "upToDate", cfg.messages.upToDate);
+            cfg.messages.updated = asStr(effectiveMessages, "updated", cfg.messages.updated);
+            cfg.messages.noTarget = asStr(effectiveMessages, "noTarget", cfg.messages.noTarget);
+            cfg.messages.failed = asStr(effectiveMessages, "failed", cfg.messages.failed);
+            cfg.messages.promptRestart = asStr(effectiveMessages, "promptRestart", cfg.messages.promptRestart);
+            cfg.messages.startUpCheck = asStr(effectiveMessages, "startUpCheck", cfg.messages.startUpCheck);
+            cfg.messages.periodicCheck = asStr(effectiveMessages, "periodicCheck", cfg.messages.periodicCheck);
+            cfg.messages.adminLoginCheck = asStr(effectiveMessages, "adminLoginCheck", cfg.messages.adminLoginCheck);
+            cfg.messages.manualTriggered = asStr(effectiveMessages, "manualTriggered", cfg.messages.manualTriggered);
+            cfg.messages.nothingToDo = asStr(effectiveMessages, "nothingToDo", cfg.messages.nothingToDo);
+            cfg.messages.done = asStr(effectiveMessages, "done", cfg.messages.done);
+            cfg.messages.noPermission = asStr(effectiveMessages, "noPermission", cfg.messages.noPermission);
 
             return cfg;
         } catch (IOException e) {

@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 public class UpdaterService {
     private static final String BASE = "https://download.geysermc.org/v2/projects";
+    private static final String MODRINTH_BASE = "https://api.modrinth.com/v2/project";
     private final HttpClient http;
     private final LogAdapter log;
     private final Config cfg;
@@ -60,13 +61,15 @@ public class UpdaterService {
         List<Project> targets = new ArrayList<>();
         if (cfg.targets.geyser) targets.add(Project.GEYSER);
         if (cfg.targets.floodgate) targets.add(Project.FLOODGATE);
+        if (cfg.targets.mcxboxbroadcast) targets.add(Project.MCXBOXBROADCAST);
         return targets;
     }
 
     private UpdateOutcome updateOne(Project project, Platform platform, Path pluginsDir) {
         try {
-            Path existing = findExistingJar(project, pluginsDir);
-            String downloadUrl = BASE + "/" + project.apiName() + "/versions/latest/builds/latest/downloads/" + platform.apiName();
+            Path baseDir = resolveProjectDirectory(project, pluginsDir);
+            Path existing = findExistingJar(project, baseDir);
+            String downloadUrl = resolveDownloadUrl(project, platform);
 
             Path tmp = Files.createTempFile("geyserupdater-" + project.apiName(), ".jar");
             try {
@@ -91,7 +94,7 @@ public class UpdaterService {
             }
 
             // Determine destination
-            Path dest = (existing != null) ? existing : defaultDestination(project, platform, pluginsDir);
+            Path dest = (existing != null) ? existing : defaultDestination(project, platform, baseDir);
             // Move atomically
             FileUtils.atomicMove(tmp, dest);
 
@@ -99,6 +102,13 @@ public class UpdaterService {
         } catch (Exception ex) {
             return new UpdateOutcome(project, false, false, Optional.of(ex.getMessage()));
         }
+    }
+
+    private String resolveDownloadUrl(Project project, Platform platform) throws IOException {
+        if (project == Project.MCXBOXBROADCAST) {
+            return fetchModrinthLatestUrl(project.apiName());
+        }
+        return BASE + "/" + project.apiName() + "/versions/latest/builds/latest/downloads/" + platform.apiName();
     }
 
     private void downloadTo(String url, Path target) throws IOException {
@@ -121,10 +131,10 @@ public class UpdaterService {
         }
     }
 
-    private Path findExistingJar(Project project, Path pluginsDir) throws IOException {
-        if (!Files.exists(pluginsDir)) return null;
+    private Path findExistingJar(Project project, Path baseDir) throws IOException {
+        if (!Files.exists(baseDir)) return null;
         try {
-            List<Path> matches = Files.list(pluginsDir)
+            List<Path> matches = Files.list(baseDir)
                     .filter(p -> {
                         String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
                         return name.endsWith(".jar") &&
@@ -143,7 +153,7 @@ public class UpdaterService {
         }
     }
 
-    private Path defaultDestination(Project project, Platform platform, Path pluginsDir) {
+    private Path defaultDestination(Project project, Platform platform, Path baseDir) {
         String filename;
         switch (project) {
             case GEYSER:
@@ -162,9 +172,120 @@ public class UpdaterService {
                     default: filename = "floodgate.jar";
                 }
                 break;
+            case MCXBOXBROADCAST:
+                filename = "mcxboxbroadcast.jar";
+                break;
             default:
                 filename = "plugin.jar";
         }
-        return pluginsDir.resolve(filename);
+        return baseDir.resolve(filename);
+    }
+
+    private Path resolveProjectDirectory(Project project, Path pluginsDir) {
+        if (project == Project.MCXBOXBROADCAST) {
+            return pluginsDir.resolve("Geyser-Spigot").resolve("extensions");
+        }
+        return pluginsDir;
+    }
+
+    private String fetchModrinthLatestUrl(String projectSlug) throws IOException {
+        String url = MODRINTH_BASE + "/" + projectSlug + "/version";
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(60))
+                .header("User-Agent", "GeyserUpdater/1.0")
+                .GET()
+                .build();
+        try {
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                return extractModrinthFileUrl(resp.body());
+            }
+            throw new IOException("HTTP " + resp.statusCode() + " when fetching " + url);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted", e);
+        }
+    }
+
+    private String extractModrinthFileUrl(String json) throws IOException {
+        int filesKey = json.indexOf("\"files\"");
+        if (filesKey < 0) throw new IOException("No files array in Modrinth response");
+        int arrayStart = json.indexOf('[', filesKey);
+        if (arrayStart < 0) throw new IOException("Malformed files array in Modrinth response");
+        int arrayEnd = findMatchingBracket(json, arrayStart, '[', ']');
+        if (arrayEnd < 0) throw new IOException("Unclosed files array in Modrinth response");
+        String filesArray = json.substring(arrayStart + 1, arrayEnd);
+
+        List<String> fileObjects = splitTopLevelObjects(filesArray);
+        String firstUrl = null;
+        for (String obj : fileObjects) {
+            String url = extractJsonStringValue(obj, "\"url\"");
+            if (firstUrl == null && url != null) {
+                firstUrl = url;
+            }
+            if (obj.contains("\"primary\":true") && url != null) {
+                return url;
+            }
+        }
+        if (firstUrl != null) return firstUrl;
+        throw new IOException("No file url found in Modrinth response");
+    }
+
+    private int findMatchingBracket(String s, int start, char open, char close) {
+        int depth = 0;
+        for (int i = start; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == open) depth++;
+            else if (c == close) {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+        return -1;
+    }
+
+    private List<String> splitTopLevelObjects(String s) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int start = -1;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '{') {
+                if (depth == 0) start = i;
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0 && start >= 0) {
+                    out.add(s.substring(start, i + 1));
+                    start = -1;
+                }
+            }
+        }
+        return out;
+    }
+
+    private String extractJsonStringValue(String obj, String key) {
+        int keyIdx = obj.indexOf(key);
+        if (keyIdx < 0) return null;
+        int colon = obj.indexOf(':', keyIdx + key.length());
+        if (colon < 0) return null;
+        int quoteStart = obj.indexOf('"', colon + 1);
+        if (quoteStart < 0) return null;
+        StringBuilder sb = new StringBuilder();
+        boolean escaping = false;
+        for (int i = quoteStart + 1; i < obj.length(); i++) {
+            char c = obj.charAt(i);
+            if (escaping) {
+                sb.append(c);
+                escaping = false;
+            } else if (c == '\\') {
+                escaping = true;
+            } else if (c == '"') {
+                return sb.toString();
+            } else {
+                sb.append(c);
+            }
+        }
+        return null;
     }
 }

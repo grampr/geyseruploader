@@ -118,7 +118,7 @@ public class VelocityGeyserUpdaterPlugin {
         public void execute(Invocation invocation) {
             CommandSource src = invocation.source();
             if (!src.hasPermission("geyserupdater.admin")) {
-                send(src, cfg.messages.prefix + "権限がありません。");
+                send(src, cfg.messages.prefix + cfg.messages.noPermission);
                 return;
             }
             runAsyncCheck(true, src);
