@@ -17,10 +17,13 @@ import org.geyserupdater.core.VersionCompatibility;
 import org.geyserupdater.core.logging.LogAdapter;
 import org.geyserupdater.core.util.JarMigrationUtil;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     private ConfigManager cfgMgr;
@@ -35,6 +38,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         this.runtimePlatform = detectRuntimePlatform();
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new SpigotLogger());
+        applyStagedExtensionUpdates();
 
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -91,6 +95,32 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
                     + ", detected: " + check.parsedVersion());
         } else if (!check.checked()) {
             warn("Compatibility check skipped: " + check.detail());
+        }
+    }
+
+    private void applyStagedExtensionUpdates() {
+        Path pluginsDir = getDataFolder().toPath().getParent();
+        Path extensionsDir = pluginsDir.resolve("Geyser-Spigot").resolve("extensions");
+        Path stagedDir = extensionsDir.resolve("update");
+
+        if (!Files.isDirectory(stagedDir)) {
+            return;
+        }
+
+        try (Stream<Path> stream = Files.list(stagedDir)) {
+            stream.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+                    .forEach(path -> {
+                        try {
+                            Path dest = extensionsDir.resolve(path.getFileName().toString());
+                            Files.createDirectories(extensionsDir);
+                            Files.move(path, dest, StandardCopyOption.REPLACE_EXISTING);
+                            info("Applied staged extension update: " + path.getFileName());
+                        } catch (Exception ex) {
+                            warn("Failed to apply staged extension update " + path.getFileName() + ": " + ex.getMessage());
+                        }
+                    });
+        } catch (Exception ex) {
+            warn("Failed to scan staged extension updates: " + ex.getMessage());
         }
     }
 

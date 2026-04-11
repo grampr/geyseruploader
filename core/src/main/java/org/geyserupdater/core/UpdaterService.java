@@ -9,7 +9,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
+import java.nio.file.FileSystemException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
@@ -173,11 +175,22 @@ public class UpdaterService {
             }
 
             Path dest = (existing != null) ? existing : defaultDestination(project, platform, baseDir);
-            FileUtils.atomicMove(tmp, dest);
-            tmp = null;
-
-            log.info("Updated " + project.apiName() + " at " + dest + ".");
-            return new UpdateOutcome(project, true, false, Optional.empty());
+            try {
+                FileUtils.atomicMove(tmp, dest);
+                tmp = null;
+                log.info("Updated " + project.apiName() + " at " + dest + ".");
+                return new UpdateOutcome(project, true, false, Optional.empty());
+            } catch (IOException moveError) {
+                if (isLikelyFileLock(moveError)) {
+                    Path stagedPath = stageForNextRestart(project, platform, pluginsDir, dest, tmp);
+                    if (stagedPath != null) {
+                        tmp = null;
+                        log.warn("Destination file appears locked; staged update for next restart at: " + stagedPath);
+                        return new UpdateOutcome(project, true, false, Optional.empty());
+                    }
+                }
+                throw moveError;
+            }
         } catch (NoCompatibleBuildException noBuild) {
             String message = noBuild.getMessage();
             log.warn("No compatible build for " + project.apiName() + ": " + message);
@@ -585,5 +598,48 @@ public class UpdaterService {
             }
         }
         return null;
+    }
+
+    private boolean isLikelyFileLock(IOException e) {
+        if (e instanceof AccessDeniedException) {
+            return true;
+        }
+        if (e instanceof FileSystemException) {
+            String reason = ((FileSystemException) e).getReason();
+            if (reason != null) {
+                String r = reason.toLowerCase(Locale.ROOT);
+                if (r.contains("used by another process") || r.contains("access is denied") || r.contains("resource busy")) {
+                    return true;
+                }
+            }
+        }
+        String message = e.getMessage();
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase(Locale.ROOT);
+        return m.contains("used by another process") || m.contains("access is denied") || m.contains("resource busy");
+    }
+
+    private Path stageForNextRestart(Project project, Platform platform, Path pluginsDir, Path dest, Path downloadedTmp) throws IOException {
+        if (platform != Platform.SPIGOT && platform != Platform.PAPER) {
+            return null;
+        }
+
+        Path stagedDir;
+        if (project == Project.GEYSER || project == Project.FLOODGATE) {
+            // Spigot/Paper applies jars from plugins/update on startup.
+            stagedDir = pluginsDir.resolve("update");
+        } else if (project == Project.MCXBOXBROADCAST) {
+            // Geyser extensions have no built-in updater folder, so we stage in extensions/update.
+            stagedDir = resolveProjectDirectory(project, pluginsDir).resolve("update");
+        } else {
+            return null;
+        }
+
+        Files.createDirectories(stagedDir);
+        Path staged = stagedDir.resolve(dest.getFileName().toString());
+        FileUtils.atomicMove(downloadedTmp, staged);
+        return staged;
     }
 }
