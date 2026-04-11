@@ -11,32 +11,39 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
 import org.geyserupdater.core.Platform;
+import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
+import org.geyserupdater.core.VersionCompatibility;
 import org.geyserupdater.core.logging.LogAdapter;
+import org.geyserupdater.core.util.JarMigrationUtil;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     private ConfigManager cfgMgr;
     private Config cfg;
+    private Platform runtimePlatform;
 
     @Override
     public void onEnable() {
-        saveDefaultConfigFile(); // ensure folder exists
+        saveDefaultConfigFile();
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
+        this.runtimePlatform = detectRuntimePlatform();
 
-        // マイグレーションを実行
-        migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent());
+        JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new SpigotLogger());
 
         getServer().getPluginManager().registerEvents(this, this);
 
         if (!cfg.enabled) {
-            getLogger().info("[GeyserUpdater] disabled by config");
+            info("[GeyserUpdater] disabled by config");
             return;
         }
+
+        logRuntimeCompatibility();
 
         if (cfg.checkOnStartup) {
             info(cfg.messages.startUpCheck);
@@ -46,7 +53,6 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         if (cfg.periodic.enabled && cfg.periodic.intervalHours > 0) {
             info(cfg.messages.periodicCheck.replace("{hours}", String.valueOf(cfg.periodic.intervalHours)));
             long ticks = TimeUnit.HOURS.toSeconds(cfg.periodic.intervalHours) * 20L;
-            // initial delay = 5 minutes
             long delay = TimeUnit.MINUTES.toSeconds(5) * 20L;
             Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> runAsyncCheck(false, null), delay, ticks);
         }
@@ -56,7 +62,36 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         if (!getDataFolder().exists()) {
             getDataFolder().mkdirs();
         }
-        // We use our own config manager; nothing to save here
+    }
+
+    private Platform detectRuntimePlatform() {
+        String serverName = Bukkit.getName().toLowerCase(Locale.ROOT);
+        String version = Bukkit.getVersion().toLowerCase(Locale.ROOT);
+        if (serverName.contains("paper") || version.contains("paper")) {
+            return Platform.PAPER;
+        }
+        return Platform.SPIGOT;
+    }
+
+    private String detectRuntimeVersion() {
+        try {
+            return Bukkit.getBukkitVersion();
+        } catch (Throwable ignored) {
+            return Bukkit.getVersion();
+        }
+    }
+
+    private void logRuntimeCompatibility() {
+        String rawVersion = detectRuntimeVersion();
+        VersionCompatibility.CompatibilityResult check = VersionCompatibility.evaluate(runtimePlatform, rawVersion);
+
+        info("Detected platform runtime: " + runtimePlatform.displayName() + " (version=" + rawVersion + ")");
+        if (check.checked() && !check.compatible()) {
+            warn("Compatibility warning: " + check.detail() + " Minimum recommended: " + check.minimumVersion()
+                    + ", detected: " + check.parsedVersion());
+        } else if (!check.checked()) {
+            warn("Compatibility check skipped: " + check.detail());
+        }
     }
 
     private void runAsyncCheck(boolean manual, CommandSender sender) {
@@ -67,27 +102,23 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
             } else {
                 info(cfg.messages.checking);
             }
-            Path pluginsDir = getDataFolder().toPath().getParent(); // これが plugins 直下
-            List<UpdaterService.UpdateOutcome> results =
-                    service.checkAndUpdate(Platform.SPIGOT, pluginsDir);
 
-            boolean anyUpdated = false;
-            for (UpdaterService.UpdateOutcome r : results) {
-                if (r.error.isPresent()) {
-                    msg(sender, cfg.messages.failed.replace("{project}", r.project.name().toLowerCase()).replace("{error}", r.error.get()));
-                } else if (r.skippedNoChange) {
-                    msg(sender, cfg.messages.upToDate.replace("{project}", r.project.name().toLowerCase()));
-                } else if (r.updated) {
-                    anyUpdated = true;
-                    msg(sender, cfg.messages.updated.replace("{project}", r.project.name().toLowerCase()));
-                }
+            Path pluginsDir = getDataFolder().toPath().getParent();
+            List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(runtimePlatform, pluginsDir);
+            UpdateOutcomeSummary.Summary summary = UpdateOutcomeSummary.summarize(cfg, results);
+
+            for (String message : summary.messages()) {
+                msg(sender, message);
             }
-            if (anyUpdated) {
+
+            if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    Bukkit.getScheduler().runTask(this, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cfg.postUpdate.restartCommand));
+                    Bukkit.getScheduler().runTask(this,
+                            () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cfg.postUpdate.restartCommand));
                 }
             }
+
             msg(sender, cfg.messages.done);
         });
     }
@@ -108,56 +139,56 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private void info(String m) {
-        getLogger().info(m);
+    private void info(String message) {
+        getLogger().info(message);
+    }
+
+    private void warn(String message) {
+        getLogger().warning(message);
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        if (!cfg.enabled) return;
-        if (!cfg.adminLogin.enabled) return;
-        Player p = e.getPlayer();
-        if (p.hasPermission(cfg.adminLogin.permission)) {
+    public void onJoin(PlayerJoinEvent event) {
+        if (!cfg.enabled || !cfg.adminLogin.enabled) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        if (player.hasPermission(cfg.adminLogin.permission)) {
             info(cfg.messages.adminLoginCheck);
-            runAsyncCheck(false, p);
+            runAsyncCheck(false, player);
         }
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!command.getName().equalsIgnoreCase("geyserupdate")) return false;
-        if (!sender.hasPermission("geyserupdater.admin")) {
+        if (!command.getName().equalsIgnoreCase("geyserupdate")) {
+            return false;
+        }
+
+        if (!sender.hasPermission(cfg.adminLogin.permission)) {
             sender.sendMessage(cfg.messages.prefix + cfg.messages.noPermission);
             return true;
         }
-                runAsyncCheck(true, sender);
-                return true;
-            }
-        
-            private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
-                Path nested = correctPluginsDir.resolve("plugins");
-                if (!java.nio.file.Files.isDirectory(nested)) return;
-                try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
-                    s.filter(p -> {
-                        String name = p.getFileName().toString().toLowerCase();
-                        return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
-                    }).forEach(p -> {
-                        try {
-                            java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
-                            java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        } catch (Exception ex) {
-                            getLogger().warning("Failed to move " + p + " : " + ex.getMessage());
-                        }
-                    });
-                } catch (Exception ex) {
-                    getLogger().warning("Migration scan failed: " + ex.getMessage());
-                }
-            }
-        
-            private class SpigotLogger implements LogAdapter {
-                @Override public void info(String msg) { getLogger().info(msg); }
-                @Override public void warn(String msg) { getLogger().warning(msg); }
-                @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
-            }
+
+        runAsyncCheck(true, sender);
+        return true;
+    }
+
+    private class SpigotLogger implements LogAdapter {
+        @Override
+        public void info(String msg) {
+            getLogger().info(msg);
         }
-        
+
+        @Override
+        public void warn(String msg) {
+            getLogger().warning(msg);
+        }
+
+        @Override
+        public void error(String msg, Throwable t) {
+            getLogger().severe(msg + " : " + t.getMessage());
+        }
+    }
+}

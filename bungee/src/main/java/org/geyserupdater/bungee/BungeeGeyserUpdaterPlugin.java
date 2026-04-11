@@ -12,8 +12,11 @@ import net.md_5.bungee.event.EventHandler;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
 import org.geyserupdater.core.Platform;
+import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
+import org.geyserupdater.core.VersionCompatibility;
 import org.geyserupdater.core.logging.LogAdapter;
+import org.geyserupdater.core.util.JarMigrationUtil;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -25,20 +28,24 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
 
     @Override
     public void onEnable() {
-        if (!getDataFolder().exists()) getDataFolder().mkdirs();
+        if (!getDataFolder().exists()) {
+            getDataFolder().mkdirs();
+        }
+
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
 
-        // マイグレーションを実行
-        migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent());
+        JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new BungeeLogger());
 
         getProxy().getPluginManager().registerListener(this, this);
-        getProxy().getPluginManager().registerCommand(this, new UpdateCommand());
+        getProxy().getPluginManager().registerCommand(this, new UpdateCommand(cfg.adminLogin.permission));
 
         if (!cfg.enabled) {
-            getLogger().info("[GeyserUpdater] disabled by config");
+            info("[GeyserUpdater] disabled by config");
             return;
         }
+
+        logRuntimeCompatibility();
 
         if (cfg.checkOnStartup) {
             info(cfg.messages.startUpCheck);
@@ -53,6 +60,26 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
         }
     }
 
+    private String detectRuntimeVersion() {
+        try {
+            return getProxy().getVersion();
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private void logRuntimeCompatibility() {
+        String rawVersion = detectRuntimeVersion();
+        VersionCompatibility.CompatibilityResult check = VersionCompatibility.evaluate(Platform.BUNGEECORD, rawVersion);
+
+        info("Detected platform runtime: " + Platform.BUNGEECORD.displayName() + " (version=" + rawVersion + ")");
+        if (!check.checked()) {
+            info("Compatibility check info: " + check.detail());
+        } else if (!check.compatible()) {
+            getLogger().warning("Compatibility warning: " + check.detail());
+        }
+    }
+
     private void runAsyncCheck(boolean manual, CommandSender sender) {
         ProxyServer.getInstance().getScheduler().runAsync(this, () -> {
             UpdaterService service = new UpdaterService(new BungeeLogger(), cfg);
@@ -61,118 +88,93 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
             } else {
                 info(cfg.messages.checking);
             }
-            Path pluginsDir = getDataFolder().toPath().getParent(); // これが plugins 直下
-            List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.BUNGEECORD, pluginsDir);
 
-            boolean anyUpdated = false;
-            for (UpdaterService.UpdateOutcome r : results) {
-                if (r.error.isPresent()) {
-                    msg(sender, cfg.messages.failed.replace("{project}", r.project.name().toLowerCase()).replace("{error}", r.error.get()));
-                } else if (r.skippedNoChange) {
-                    msg(sender, cfg.messages.upToDate.replace("{project}", r.project.name().toLowerCase()));
-                } else if (r.updated) {
-                    anyUpdated = true;
-                    msg(sender, cfg.messages.updated.replace("{project}", r.project.name().toLowerCase()));
-                }
+            Path pluginsDir = getDataFolder().toPath().getParent();
+            List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.BUNGEECORD, pluginsDir);
+            UpdateOutcomeSummary.Summary summary = UpdateOutcomeSummary.summarize(cfg, results);
+
+            for (String message : summary.messages()) {
+                msg(sender, message);
             }
-            if (anyUpdated) {
+
+            if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    ProxyServer.getInstance().getScheduler().runAsync(this, () -> ProxyServer.getInstance().getPluginManager()
-                            .dispatchCommand(ProxyServer.getInstance().getConsole(), cfg.postUpdate.restartCommand));
+                    ProxyServer.getInstance().getScheduler().runAsync(this,
+                            () -> ProxyServer.getInstance().getPluginManager().dispatchCommand(
+                                    ProxyServer.getInstance().getConsole(),
+                                    cfg.postUpdate.restartCommand
+                            )
+                    );
                 }
             }
+
             msg(sender, cfg.messages.done);
         });
     }
 
+    @EventHandler
+    public void onPostLogin(PostLoginEvent event) {
+        if (!cfg.enabled || !cfg.adminLogin.enabled) {
+            return;
+        }
+
+        ProxiedPlayer player = event.getPlayer();
+        if (player.hasPermission(cfg.adminLogin.permission)) {
+            info(cfg.messages.adminLoginCheck);
+            runAsyncCheck(false, player);
+        }
+    }
+
+    private void msg(CommandSender sender, String message) {
+        if (sender != null) {
+            send(sender, cfg.messages.prefix + message);
+        } else {
+            info(message);
+        }
+    }
+
+    private void send(CommandSender sender, String message) {
+        if (sender != null) {
+            sender.sendMessage(new TextComponent(message));
+        } else {
+            info(message);
+        }
+    }
+
+    private void info(String message) {
+        getLogger().info(message);
+    }
+
     private class UpdateCommand extends Command {
-        public UpdateCommand() { super("geyserupdate", "geyserupdater.admin", new String[0]); }
+        private UpdateCommand(String permission) {
+            super("geyserupdate", permission, new String[0]);
+        }
 
         @Override
         public void execute(CommandSender sender, String[] args) {
+            if (!sender.hasPermission(cfg.adminLogin.permission)) {
+                send(sender, cfg.messages.prefix + cfg.messages.noPermission);
+                return;
+            }
             runAsyncCheck(true, sender);
         }
     }
 
-    @EventHandler
-    public void onPostLogin(PostLoginEvent e) {
-        if (!cfg.enabled || !cfg.adminLogin.enabled) return;
-        ProxiedPlayer p = e.getPlayer();
-        if (p.hasPermission(cfg.adminLogin.permission)) {
-            info(cfg.messages.adminLoginCheck);
-            runAsyncCheck(false, p);
-        }
-    }
-
-    private void msg(CommandSender sender, String msg) {
-        if (sender != null) send(sender, cfg.messages.prefix + msg);
-        else info(msg);
-    }
-
-    private void send(CommandSender sender, String msg) {
-        if (sender != null) sender.sendMessage(new TextComponent(msg));
-        else info(msg);
-    }
-
-        private void info(String msg) {
-
+    private class BungeeLogger implements LogAdapter {
+        @Override
+        public void info(String msg) {
             getLogger().info(msg);
-
         }
 
-    
-
-        private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
-
-            Path nested = correctPluginsDir.resolve("plugins");
-
-            if (!java.nio.file.Files.isDirectory(nested)) return;
-
-            try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
-
-                s.filter(p -> {
-
-                    String name = p.getFileName().toString().toLowerCase();
-
-                    return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
-
-                }).forEach(p -> {
-
-                    try {
-
-                        java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
-
-                        java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-                    } catch (Exception ex) {
-
-                        getLogger().warning("Failed to move " + p + " : " + ex.getMessage());
-
-                    }
-
-                });
-
-            } catch (Exception ex) {
-
-                getLogger().warning("Migration scan failed: " + ex.getMessage());
-
-            }
-
+        @Override
+        public void warn(String msg) {
+            getLogger().warning(msg);
         }
 
-    
-
-        private class BungeeLogger implements LogAdapter {
-
-            @Override public void info(String msg) { getLogger().info(msg); }
-
-            @Override public void warn(String msg) { getLogger().warning(msg); }
-
-            @Override public void error(String msg, Throwable t) { getLogger().severe(msg + " : " + t.getMessage()); }
-
+        @Override
+        public void error(String msg, Throwable t) {
+            getLogger().severe(msg + " : " + t.getMessage());
         }
-
     }
-
-    
+}

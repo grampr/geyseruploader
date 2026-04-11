@@ -12,8 +12,11 @@ import net.kyori.adventure.text.Component;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
 import org.geyserupdater.core.Platform;
+import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
+import org.geyserupdater.core.VersionCompatibility;
 import org.geyserupdater.core.logging.LogAdapter;
+import org.geyserupdater.core.util.JarMigrationUtil;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -42,42 +45,62 @@ public class VelocityGeyserUpdaterPlugin {
     }
 
     @Subscribe
-    public void onProxyInitialize(com.velocitypowered.api.event.proxy.ProxyInitializeEvent e) {
+    public void onProxyInitialize(com.velocitypowered.api.event.proxy.ProxyInitializeEvent event) {
         try {
             java.nio.file.Files.createDirectories(dataDir);
         } catch (Exception ex) {
             logger.severe("Could not create data directory: " + ex.getMessage());
         }
+
         this.cfgMgr = new ConfigManager(dataDir);
         this.cfg = cfgMgr.loadOrCreateDefault();
 
-        // マイグレーションを実行
-        migrateNestedPluginsIfNeeded(dataDir.getParent());
+        JarMigrationUtil.migrateNestedPluginsIfNeeded(dataDir.getParent(), new VelocityLogger());
 
-        // コマンド登録
         proxy.getCommandManager().register(
                 proxy.getCommandManager().metaBuilder("geyserupdate").build(),
                 new UpdateCommand()
         );
-
-        // 注意: メインインスタンスは自動でイベント登録されるため、明示的な register は不要
-        // 例: proxy.getEventManager().register(this, this); は呼び出さない
 
         if (!cfg.enabled) {
             logger.info("[GeyserUpdater] disabled by config");
             return;
         }
 
+        logRuntimeCompatibility();
+
         if (cfg.checkOnStartup) {
             logger.info(cfg.messages.startUpCheck);
             runAsyncCheck(false, null);
         }
+
         if (cfg.periodic.enabled && cfg.periodic.intervalHours > 0) {
             logger.info(cfg.messages.periodicCheck.replace("{hours}", String.valueOf(cfg.periodic.intervalHours)));
             proxy.getScheduler().buildTask(this, () -> runAsyncCheck(false, null))
                     .delay(5, TimeUnit.MINUTES)
                     .repeat(cfg.periodic.intervalHours, TimeUnit.HOURS)
                     .schedule();
+        }
+    }
+
+    private String detectRuntimeVersion() {
+        try {
+            return proxy.getVersion().getVersion();
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private void logRuntimeCompatibility() {
+        String rawVersion = detectRuntimeVersion();
+        VersionCompatibility.CompatibilityResult check = VersionCompatibility.evaluate(Platform.VELOCITY, rawVersion);
+
+        logger.info("Detected platform runtime: " + Platform.VELOCITY.displayName() + " (version=" + rawVersion + ")");
+        if (check.checked() && !check.compatible()) {
+            logger.warning("Compatibility warning: " + check.detail() + " Minimum recommended: "
+                    + check.minimumVersion() + ", detected: " + check.parsedVersion());
+        } else if (!check.checked()) {
+            logger.warning("Compatibility check skipped: " + check.detail());
         }
     }
 
@@ -89,89 +112,85 @@ public class VelocityGeyserUpdaterPlugin {
             } else {
                 logger.info(cfg.messages.checking);
             }
-            Path pluginsDir = dataDir.getParent(); // これが plugins 直下
-            List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.VELOCITY, pluginsDir);
 
-            boolean anyUpdated = false;
-            for (UpdaterService.UpdateOutcome r : results) {
-                if (r.error.isPresent()) {
-                    msg(sender, cfg.messages.failed.replace("{project}", r.project.name().toLowerCase()).replace("{error}", r.error.get()));
-                } else if (r.skippedNoChange) {
-                    msg(sender, cfg.messages.upToDate.replace("{project}", r.project.name().toLowerCase()));
-                } else if (r.updated) {
-                    anyUpdated = true;
-                    msg(sender, cfg.messages.updated.replace("{project}", r.project.name().toLowerCase()));
-                }
+            Path pluginsDir = dataDir.getParent();
+            List<UpdaterService.UpdateOutcome> results = service.checkAndUpdate(Platform.VELOCITY, pluginsDir);
+            UpdateOutcomeSummary.Summary summary = UpdateOutcomeSummary.summarize(cfg, results);
+
+            for (String message : summary.messages()) {
+                msg(sender, message);
             }
-            if (anyUpdated) {
+
+            if (summary.anyUpdated()) {
                 logger.info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
                     proxy.getCommandManager().executeAsync(proxy.getConsoleCommandSource(), cfg.postUpdate.restartCommand);
                 }
             }
+
             msg(sender, cfg.messages.done);
         }).schedule();
+    }
+
+    @Subscribe
+    public void onPostLogin(PostLoginEvent event) {
+        if (!cfg.enabled || !cfg.adminLogin.enabled) {
+            return;
+        }
+
+        if (event.getPlayer().hasPermission(cfg.adminLogin.permission)) {
+            logger.info(cfg.messages.adminLoginCheck);
+            runAsyncCheck(false, event.getPlayer());
+        }
+    }
+
+    private void msg(CommandSource sender, String message) {
+        if (sender != null) {
+            send(sender, cfg.messages.prefix + message);
+        } else {
+            logger.info(message);
+        }
+    }
+
+    private void send(CommandSource sender, String message) {
+        if (sender != null) {
+            sender.sendMessage(Component.text(message));
+        } else {
+            logger.info(message);
+        }
     }
 
     private class UpdateCommand implements SimpleCommand {
         @Override
         public void execute(Invocation invocation) {
-            CommandSource src = invocation.source();
-            if (!src.hasPermission("geyserupdater.admin")) {
-                send(src, cfg.messages.prefix + cfg.messages.noPermission);
+            CommandSource source = invocation.source();
+            if (!source.hasPermission(cfg.adminLogin.permission)) {
+                send(source, cfg.messages.prefix + cfg.messages.noPermission);
                 return;
             }
-            runAsyncCheck(true, src);
+            runAsyncCheck(true, source);
         }
 
         @Override
         public boolean hasPermission(Invocation invocation) {
-            return invocation.source().hasPermission("geyserupdater.admin");
-        }
-    }
-
-    @Subscribe
-    public void onPostLogin(PostLoginEvent e) {
-        if (!cfg.enabled || !cfg.adminLogin.enabled) return;
-        if (e.getPlayer().hasPermission(cfg.adminLogin.permission)) {
-            logger.info(cfg.messages.adminLoginCheck);
-            runAsyncCheck(false, e.getPlayer());
-        }
-    }
-
-    private void msg(CommandSource sender, String msg) {
-        if (sender != null) send(sender, cfg.messages.prefix + msg);
-        else logger.info(msg);
-    }
-
-    private void send(CommandSource sender, String msg) {
-        if (sender != null) sender.sendMessage(Component.text(msg));
-        else logger.info(msg);
-    }
-
-    private void migrateNestedPluginsIfNeeded(Path correctPluginsDir) {
-        Path nested = correctPluginsDir.resolve("plugins");
-        if (!java.nio.file.Files.isDirectory(nested)) return;
-        try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.list(nested)) {
-            s.filter(p -> {
-                String name = p.getFileName().toString().toLowerCase();
-                return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
-            }).forEach(p -> {
-                try {
-                    java.nio.file.Path dest = correctPluginsDir.resolve(p.getFileName().toString());
-                    java.nio.file.Files.move(p, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                } catch (Exception ex) {
-                    logger.warning("Failed to move " + p + " : " + ex.getMessage());
-                }
-            });
-        } catch (Exception ex) {
-            logger.warning("Migration scan failed: " + ex.getMessage());
+            return invocation.source().hasPermission(cfg.adminLogin.permission);
         }
     }
 
     private class VelocityLogger implements LogAdapter {
-        @Override public void info(String msg) { logger.info(msg); }
-        @Override public void warn(String msg) { logger.warning(msg); }
-        @Override public void error(String msg, Throwable t) { logger.severe(msg + " : " + t.getMessage()); }
+        @Override
+        public void info(String msg) {
+            logger.info(msg);
+        }
+
+        @Override
+        public void warn(String msg) {
+            logger.warning(msg);
+        }
+
+        @Override
+        public void error(String msg, Throwable t) {
+            logger.severe(msg + " : " + t.getMessage());
+        }
     }
 }
