@@ -17,9 +17,9 @@ Build
 - Instructions:
   - Run `mvn package` in the directory where you cloned the repository
   - Artifacts:
-    - `spigot/target/GeyserUpdater-Spigot-1.0.0.jar`
-    - `bungee/target/GeyserUpdater-Bungee-1.0.0.jar`
-    - `velocity/target/GeyserUpdater-Velocity-1.0.0.jar`
+    - `spigot/target/geyserupdater-spigot.jar`
+    - `bungee/target/geyserupdater-bungee.jar`
+    - `velocity/target/geyserupdater-velocity.jar`
 
 Installation
 - Place the appropriate JAR for your server platform into the plugins folder

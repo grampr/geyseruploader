@@ -36,6 +36,7 @@
   </dependencies>
 
   <build>
+    <finalName>geyserupdater-velocity</finalName>
     <resources>
       <resource>
         <directory>src/main/resources</directory>

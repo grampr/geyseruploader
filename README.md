@@ -17,9 +17,9 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 - 手順:
   - git clone したフォルダで mvn package
   - 生成物:
-    - spigot/target/GeyserUpdater-Spigot-1.0.0.jar
-    - bungee/target/GeyserUpdater-Bungee-1.0.0.jar
-    - velocity/target/GeyserUpdater-Velocity-1.0.0.jar
+    - spigot/target/geyserupdater-spigot.jar
+    - bungee/target/geyserupdater-bungee.jar
+    - velocity/target/geyserupdater-velocity.jar
 
 導入
 - 対応サーバーに該当する JAR を plugins フォルダへ配置
@@ -70,4 +70,3 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 
 ライセンス
 - Apache License 2.0
-
