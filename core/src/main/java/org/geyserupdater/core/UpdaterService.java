@@ -314,7 +314,13 @@ public class UpdaterService {
             List<Path> matches = Files.list(baseDir)
                     .filter(p -> {
                         String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
-                        return name.endsWith(".jar") && name.contains(project.fileHint());
+                        if (!name.endsWith(".jar")) {
+                            return false;
+                        }
+                        if (name.contains("geyserupdater")) {
+                            return false;
+                        }
+                        return matchesProjectJarName(project, name);
                     })
                     .collect(Collectors.toList());
             if (matches.isEmpty()) {
@@ -330,6 +336,29 @@ public class UpdaterService {
         } catch (IOException e) {
             throw e;
         }
+    }
+
+    private boolean matchesProjectJarName(Project project, String fileName) {
+        return switch (project) {
+            case GEYSER -> fileName.equals("geyser-spigot.jar")
+                    || fileName.equals("geyser-bungeecord.jar")
+                    || fileName.equals("geyser-velocity.jar")
+                    || fileName.equals("geyser.jar")
+                    || fileName.startsWith("geyser-spigot-")
+                    || fileName.startsWith("geyser-bungeecord-")
+                    || fileName.startsWith("geyser-velocity-")
+                    || fileName.startsWith("geyser-");
+            case FLOODGATE -> fileName.equals("floodgate-spigot.jar")
+                    || fileName.equals("floodgate-bungee.jar")
+                    || fileName.equals("floodgate-velocity.jar")
+                    || fileName.equals("floodgate.jar")
+                    || fileName.startsWith("floodgate-spigot-")
+                    || fileName.startsWith("floodgate-bungee-")
+                    || fileName.startsWith("floodgate-velocity-")
+                    || fileName.startsWith("floodgate-");
+            case MCXBOXBROADCAST -> fileName.equals("mcxboxbroadcast.jar")
+                    || fileName.startsWith("mcxboxbroadcast-");
+        };
     }
 
     private Path defaultDestination(Project project, Platform platform, Path baseDir) {

@@ -25,7 +25,12 @@ public final class JarMigrationUtil {
         try (Stream<Path> stream = Files.list(nested)) {
             stream.filter(path -> {
                 String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-                return name.endsWith(".jar") && (name.contains("geyser") || name.contains("floodgate"));
+                return name.endsWith(".jar")
+                        && !name.contains("geyserupdater")
+                        && (name.startsWith("geyser-")
+                        || name.equals("geyser.jar")
+                        || name.startsWith("floodgate-")
+                        || name.equals("floodgate.jar"));
             }).forEach(path -> {
                 try {
                     Path dest = correctPluginsDir.resolve(path.getFileName().toString());
