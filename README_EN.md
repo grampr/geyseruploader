@@ -61,11 +61,12 @@ How it Works
   - To enable automatic restarts, set `postUpdate.runRestartCommand` to `true` and configure `restartCommand` to match your environment
 - MCXboxBroadcast is placed in the Geyser extensions folder
   - Example: `plugins/Geyser-Spigot/extensions`
+  - Velocity example: `plugins/Geyser-Velocity/extensions`
 
 Notes / Known Limitations
 - If a download fails due to network issues or other errors, the existing plugin files will not be affected
 - The plugin cannot detect Geyser/Floodgate files if they have unusual names or are not located directly within the plugins folder (it only scans for *.jar files in the root of the plugins directory)
-- MCXboxBroadcast is always placed in `plugins/Geyser-Spigot/extensions`
+- MCXboxBroadcast is placed in the platform-specific Geyser extensions folder
 - The plugin does not display version numbers; it relies solely on hash comparison to determine if an update is available
 
 License

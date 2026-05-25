@@ -127,7 +127,7 @@ public class UpdaterService {
     private UpdateOutcome updateOne(Project project, Platform platform, Path pluginsDir) {
         Path tmp = null;
         try {
-            Path baseDir = resolveProjectDirectory(project, pluginsDir);
+            Path baseDir = resolveProjectDirectory(project, platform, pluginsDir);
             Files.createDirectories(baseDir);
 
             Path existing = findExistingJar(project, baseDir);
@@ -405,11 +405,20 @@ public class UpdaterService {
         return baseDir.resolve(filename);
     }
 
-    private Path resolveProjectDirectory(Project project, Path pluginsDir) {
+    private Path resolveProjectDirectory(Project project, Platform platform, Path pluginsDir) {
         if (project == Project.MCXBOXBROADCAST) {
-            return pluginsDir.resolve("Geyser-Spigot").resolve("extensions");
+            return geyserExtensionsDirectory(platform, pluginsDir);
         }
         return pluginsDir;
+    }
+
+    private Path geyserExtensionsDirectory(Platform platform, Path pluginsDir) {
+        String geyserDirectory = switch (platform) {
+            case SPIGOT, PAPER -> "Geyser-Spigot";
+            case BUNGEECORD -> "Geyser-BungeeCord";
+            case VELOCITY -> "Geyser-Velocity";
+        };
+        return pluginsDir.resolve(geyserDirectory).resolve("extensions");
     }
 
     private String fetchModrinthLatestUrl(String projectSlug) throws IOException {
@@ -661,7 +670,7 @@ public class UpdaterService {
             stagedDir = pluginsDir.resolve("update");
         } else if (project == Project.MCXBOXBROADCAST) {
             // Geyser extensions have no built-in updater folder, so we stage in extensions/update.
-            stagedDir = resolveProjectDirectory(project, pluginsDir).resolve("update");
+            stagedDir = resolveProjectDirectory(project, platform, pluginsDir).resolve("update");
         } else {
             return null;
         }
