@@ -18,6 +18,7 @@ postUpdate:
   notifyPlayersWithPermission: true
   runRestartCommand: false
   restartCommand: "end"
+  restartDelaySeconds: 0
 messages:
   ja:
     prefix: "[GeyserUpdater] "

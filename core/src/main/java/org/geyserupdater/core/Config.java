@@ -34,6 +34,7 @@ public class Config {
         public boolean notifyPlayersWithPermission = true;
         public boolean runRestartCommand = false;
         public String restartCommand = "restart";
+        public int restartDelaySeconds = 0;
     }
 
     public Messages messages = new Messages();

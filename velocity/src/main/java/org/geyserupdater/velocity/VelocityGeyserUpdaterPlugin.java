@@ -26,7 +26,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "geyserupdater",
         name = "GeyserUpdater",
-        version = "1.0.1",
+        version = "1.1.0",
         description = "Auto-updater for GeyserMC and Floodgate"
 )
 public class VelocityGeyserUpdaterPlugin {
@@ -124,7 +124,13 @@ public class VelocityGeyserUpdaterPlugin {
             if (summary.anyUpdated()) {
                 logger.info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    proxy.getCommandManager().executeAsync(proxy.getConsoleCommandSource(), cfg.postUpdate.restartCommand);
+                    proxy.getScheduler().buildTask(this,
+                                    () -> proxy.getCommandManager().executeAsync(
+                                            proxy.getConsoleCommandSource(),
+                                            cfg.postUpdate.restartCommand
+                                    ))
+                            .delay(cfg.postUpdate.restartDelaySeconds, TimeUnit.SECONDS)
+                            .schedule();
                 }
             }
 

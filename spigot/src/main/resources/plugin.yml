@@ -1,6 +1,6 @@
 name: GeyserUpdater
 main: org.geyserupdater.spigot.SpigotGeyserUpdaterPlugin
-version: 1.0.1
+version: 1.1.0
 api-version: 1.19
 author: neha
 load: STARTUP

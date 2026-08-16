@@ -22,12 +22,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 public class UpdaterService {
     private static final String BASE = "https://download.geysermc.org/v2/projects";
     private static final String MODRINTH_BASE = "https://api.modrinth.com/v2/project";
-    private static final String USER_AGENT = "GeyserUpdater/1.1";
+    private static final String USER_AGENT = "GeyserUpdater/1.1.0";
 
     private final HttpClient http;
     private final LogAdapter log;
@@ -130,7 +132,7 @@ public class UpdaterService {
             Path baseDir = resolveProjectDirectory(project, platform, pluginsDir);
             Files.createDirectories(baseDir);
 
-            Path existing = findExistingJar(project, baseDir);
+            Path existing = findExistingJar(project, platform, baseDir);
             DownloadSpec spec = resolveDownloadSpec(project, platform);
 
             log.info("Resolved latest " + project.apiName() + " version " + spec.version + " build #" + spec.build
@@ -305,22 +307,19 @@ public class UpdaterService {
         }
     }
 
-    private Path findExistingJar(Project project, Path baseDir) throws IOException {
+    private Path findExistingJar(Project project, Platform platform, Path baseDir) throws IOException {
         if (!Files.exists(baseDir)) {
             return null;
         }
 
-        try {
-            List<Path> matches = Files.list(baseDir)
+        try (var files = Files.list(baseDir)) {
+            List<Path> matches = files
                     .filter(p -> {
                         String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
                         if (!name.endsWith(".jar")) {
                             return false;
                         }
-                        if (name.contains("geyserupdater")) {
-                            return false;
-                        }
-                        return matchesProjectJarName(project, name);
+                        return isProjectJarCandidate(project, platform, p);
                     })
                     .collect(Collectors.toList());
             if (matches.isEmpty()) {
@@ -333,32 +332,65 @@ public class UpdaterService {
             }).findFirst();
 
             return preferred.orElse(matches.get(0));
-        } catch (IOException e) {
-            throw e;
         }
     }
 
-    private boolean matchesProjectJarName(Project project, String fileName) {
+    static boolean matchesProjectJarName(Project project, Platform platform, String fileName) {
         return switch (project) {
-            case GEYSER -> fileName.equals("geyser-spigot.jar")
-                    || fileName.equals("geyser-bungeecord.jar")
-                    || fileName.equals("geyser-velocity.jar")
-                    || fileName.equals("geyser.jar")
-                    || fileName.startsWith("geyser-spigot-")
-                    || fileName.startsWith("geyser-bungeecord-")
-                    || fileName.startsWith("geyser-velocity-")
-                    || fileName.startsWith("geyser-");
-            case FLOODGATE -> fileName.equals("floodgate-spigot.jar")
-                    || fileName.equals("floodgate-bungee.jar")
-                    || fileName.equals("floodgate-velocity.jar")
-                    || fileName.equals("floodgate.jar")
-                    || fileName.startsWith("floodgate-spigot-")
-                    || fileName.startsWith("floodgate-bungee-")
-                    || fileName.startsWith("floodgate-velocity-")
-                    || fileName.startsWith("floodgate-");
+            case GEYSER -> matchesPlatformJar(fileName, "geyser", switch (platform) {
+                case SPIGOT, PAPER -> "geyser-spigot";
+                case BUNGEECORD -> "geyser-bungeecord";
+                case VELOCITY -> "geyser-velocity";
+            });
+            case FLOODGATE -> matchesPlatformJar(fileName, "floodgate", switch (platform) {
+                case SPIGOT, PAPER -> "floodgate-spigot";
+                case BUNGEECORD -> "floodgate-bungee";
+                case VELOCITY -> "floodgate-velocity";
+            });
             case MCXBOXBROADCAST -> fileName.equals("mcxboxbroadcast.jar")
-                    || fileName.startsWith("mcxboxbroadcast-");
+                    || hasVersionedJarName(fileName, "mcxboxbroadcast");
         };
+    }
+
+    static boolean isProjectJarCandidate(Project project, Platform platform, Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!matchesProjectJarName(project, platform, fileName)) {
+            return false;
+        }
+        return !isUpdaterPluginJar(path);
+    }
+
+    private static boolean isUpdaterPluginJar(Path path) {
+        try (JarFile jar = new JarFile(path.toFile())) {
+            for (String descriptor : List.of("plugin.yml", "bungee.yml", "velocity-plugin.json")) {
+                JarEntry entry = jar.getJarEntry(descriptor);
+                if (entry == null) {
+                    continue;
+                }
+                try (InputStream input = jar.getInputStream(entry)) {
+                    String contents = new String(input.readNBytes(64 * 1024), java.nio.charset.StandardCharsets.UTF_8)
+                            .toLowerCase(Locale.ROOT);
+                    if (contents.contains("geyserupdater")) {
+                        return true;
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // Preserve filename-based compatibility when a third-party jar descriptor cannot be read.
+        }
+        return false;
+    }
+
+    private static boolean matchesPlatformJar(String fileName, String genericName, String platformName) {
+        return fileName.equals(genericName + ".jar")
+                || fileName.equals(platformName + ".jar")
+                || hasVersionedJarName(fileName, platformName);
+    }
+
+    private static boolean hasVersionedJarName(String fileName, String baseName) {
+        return fileName.startsWith(baseName + "-")
+                && fileName.length() > baseName.length() + ".jar".length() + 1
+                && fileName.endsWith(".jar");
     }
 
     private Path defaultDestination(Project project, Platform platform, Path baseDir) {
@@ -412,7 +444,7 @@ public class UpdaterService {
         return pluginsDir;
     }
 
-    private Path geyserExtensionsDirectory(Platform platform, Path pluginsDir) {
+    static Path geyserExtensionsDirectory(Platform platform, Path pluginsDir) {
         String geyserDirectory = switch (platform) {
             case SPIGOT, PAPER -> "Geyser-Spigot";
             case BUNGEECORD -> "Geyser-BungeeCord";

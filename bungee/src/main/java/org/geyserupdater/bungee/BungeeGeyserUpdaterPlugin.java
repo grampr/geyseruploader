@@ -100,11 +100,13 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
             if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    ProxyServer.getInstance().getScheduler().runAsync(this,
+                    ProxyServer.getInstance().getScheduler().schedule(this,
                             () -> ProxyServer.getInstance().getPluginManager().dispatchCommand(
                                     ProxyServer.getInstance().getConsole(),
                                     cfg.postUpdate.restartCommand
-                            )
+                            ),
+                            cfg.postUpdate.restartDelaySeconds,
+                            TimeUnit.SECONDS
                     );
                 }
             }

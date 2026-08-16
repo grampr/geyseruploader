@@ -1,6 +1,6 @@
 name: GeyserUpdater
 main: org.geyserupdater.bungee.BungeeGeyserUpdaterPlugin
-version: 1.0.1
+version: 1.1.0
 author: neha
 commands:
   geyserupdate:

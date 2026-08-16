@@ -45,6 +45,7 @@ Configuration File (`config.yml`)
 - `postUpdate.notifyPlayersWithPermission`: Sends an in-game chat notification to players with permission
 - `postUpdate.runRestartCommand`: Automatically executes a restart command after an update
 - `postUpdate.restartCommand`: The restart command to execute (e.g., `restart` or `end`)
+- `postUpdate.restartDelaySeconds`: Seconds to wait after an update before running the restart command (default: `0`)
 - `messages.<lang>.*`: Customize messages (e.g., `messages.ja.*`)
   - For compatibility, `messages.*` is also read when `language=ja`
 
@@ -58,7 +59,7 @@ How it Works
   - If the hashes are identical, it is considered "up to date," and the file is not replaced
   - If they differ, the existing file is overwritten using an atomic replacement operation
 - A server or proxy restart is required after an update is applied
-  - To enable automatic restarts, set `postUpdate.runRestartCommand` to `true` and configure `restartCommand` to match your environment
+  - To enable automatic restarts, set `postUpdate.runRestartCommand` to `true` and configure `restartCommand` and `restartDelaySeconds` to match your environment
 - MCXboxBroadcast is placed in the Geyser extensions folder
   - Example: `plugins/Geyser-Spigot/extensions`
   - Velocity example: `plugins/Geyser-Velocity/extensions`

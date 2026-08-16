@@ -81,6 +81,8 @@ public class ConfigManager {
             cfg.postUpdate.notifyPlayersWithPermission = asBool(postUpdate, "notifyPlayersWithPermission", cfg.postUpdate.notifyPlayersWithPermission);
             cfg.postUpdate.runRestartCommand = asBool(postUpdate, "runRestartCommand", cfg.postUpdate.runRestartCommand);
             cfg.postUpdate.restartCommand = asStr(postUpdate, "restartCommand", cfg.postUpdate.restartCommand);
+            cfg.postUpdate.restartDelaySeconds = Math.max(0,
+                    asInt(postUpdate, "restartDelaySeconds", cfg.postUpdate.restartDelaySeconds));
 
             // messages
             Map<String, Object> messages = asMap(map, "messages");

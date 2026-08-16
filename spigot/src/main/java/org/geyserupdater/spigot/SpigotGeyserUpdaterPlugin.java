@@ -144,8 +144,10 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
             if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
                 if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    Bukkit.getScheduler().runTask(this,
-                            () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cfg.postUpdate.restartCommand));
+                    long delayTicks = cfg.postUpdate.restartDelaySeconds * 20L;
+                    Bukkit.getScheduler().runTaskLater(this,
+                            () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cfg.postUpdate.restartCommand),
+                            delayTicks);
                 }
             }
 

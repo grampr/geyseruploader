@@ -1,7 +1,7 @@
 {
   "id": "geyserupdater",
   "name": "GeyserUpdater",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Auto-updater for GeyserMC and Floodgate",
   "authors": ["neha"],
   "main": "org.geyserupdater.velocity.VelocityGeyserUpdaterPlugin"

@@ -45,6 +45,7 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 - postUpdate.notifyPlayersWithPermission: 権限保持者にチャットで通知
 - postUpdate.runRestartCommand: 更新後に自動で再起動コマンドを実行
 - postUpdate.restartCommand: 実行する再起動コマンド（例: restart / end）
+- postUpdate.restartDelaySeconds: 更新完了から再起動コマンド実行までの待機秒数（既定値: 0）
 - messages.<lang>.*: 送信メッセージのカスタマイズ（例: messages.ja.*）
   - 互換のため、language=ja の場合は従来の messages.* でも読み込み可
 
@@ -58,14 +59,14 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
   - 同一なら上書きせず「最新」と判定
   - 異なれば原子置換で上書き
 - 上書き後はサーバー/プロキシの再起動が必要です
-  - 自動再起動を有効にする場合は postUpdate.runRestartCommand を true にし、restartCommand を環境に合わせて設定してください
+  - 自動再起動を有効にする場合は postUpdate.runRestartCommand を true にし、restartCommand と restartDelaySeconds を環境に合わせて設定してください
  - MCXboxBroadcast は Geyser の extensions フォルダに配置します
    - 例: plugins/Geyser-Spigot/extensions
 
 注意/既知の制限
 - ネットワーク障害などによりダウンロードが失敗する場合、既存ファイルには影響しません
 - Geyser/Floodgate のファイル名が特殊で plugins 直下以外にある場合は検出できません（plugins直下の *.jar 探索が前提）
-- MCXboxBroadcast の配置先は plugins/Geyser-Spigot/extensions 固定です
+- MCXboxBroadcast はプラットフォーム別の Geyser extensions フォルダに配置されます
 - バージョン番号の表示は行っていません（ハッシュ比較による更新判定）
 
 ライセンス
