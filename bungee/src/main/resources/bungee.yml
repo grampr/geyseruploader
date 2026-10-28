@@ -1,10 +1,10 @@
 name: GeyserUpdater
 main: org.geyserupdater.bungee.BungeeGeyserUpdaterPlugin
-version: 1.1.0
-author: neha
+version: 1.2.0
+author: grampr
 commands:
   geyserupdate:
-    description: Geyser/Floodgateの更新チェックを実行します
+    description: Geyser/Floodgate/Via系の更新チェックを実行します
 permissions:
   geyserupdater.admin:
     description: GeyserUpdaterの管理コマンドを実行できます

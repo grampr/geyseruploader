@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 public final class VersionCompatibility {
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+(?:\\.\\d+)?)");
     private static final Map<Platform, String> MINIMUMS = Map.of(
-            Platform.PAPER, "26.1.1",
-            Platform.SPIGOT, "1.16.5",
+            Platform.PAPER, "1.19",
+            Platform.SPIGOT, "1.19",
             Platform.VELOCITY, "3.3.0"
     );
 

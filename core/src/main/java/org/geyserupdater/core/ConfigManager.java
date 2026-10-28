@@ -74,6 +74,9 @@ public class ConfigManager {
             cfg.targets.geyser = asBool(targets, "geyser", cfg.targets.geyser);
             cfg.targets.floodgate = asBool(targets, "floodgate", cfg.targets.floodgate);
             cfg.targets.mcxboxbroadcast = asBool(targets, "mcxboxbroadcast", cfg.targets.mcxboxbroadcast);
+            cfg.targets.viaversion = asBool(targets, "viaversion", cfg.targets.viaversion);
+            cfg.targets.viabackwards = asBool(targets, "viabackwards", cfg.targets.viabackwards);
+            cfg.targets.viarewind = asBool(targets, "viarewind", cfg.targets.viarewind);
 
             // postUpdate
             Map<String, Object> postUpdate = asMap(map, "postUpdate");

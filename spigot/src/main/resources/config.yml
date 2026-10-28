@@ -14,6 +14,11 @@ targets:
   geyser: true
   floodgate: true
   mcxboxbroadcast: false
+  # Via系: true にしたプラグインを実行環境に対応する公式安定版へ更新します
+  # 対応版が不明・Java要件を満たさない場合は既存JARを維持します
+  viaversion: false
+  viabackwards: false
+  viarewind: false
 postUpdate:
   notifyConsole: true
   notifyPlayersWithPermission: true

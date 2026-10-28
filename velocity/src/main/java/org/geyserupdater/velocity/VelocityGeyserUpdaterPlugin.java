@@ -26,8 +26,9 @@ import java.util.logging.Logger;
 @Plugin(
         id = "geyserupdater",
         name = "GeyserUpdater",
-        version = "1.1.0",
-        description = "Auto-updater for GeyserMC and Floodgate"
+        version = "1.2.0",
+        description = "Auto-updater for GeyserMC, Floodgate and Via plugins",
+        authors = {"grampr"}
 )
 public class VelocityGeyserUpdaterPlugin {
     private final ProxyServer proxy;
@@ -36,6 +37,7 @@ public class VelocityGeyserUpdaterPlugin {
 
     private ConfigManager cfgMgr;
     private Config cfg;
+    private String runtimeVersion;
 
     @Inject
     public VelocityGeyserUpdaterPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDir) {
@@ -54,6 +56,7 @@ public class VelocityGeyserUpdaterPlugin {
 
         this.cfgMgr = new ConfigManager(dataDir);
         this.cfg = cfgMgr.loadOrCreateDefault();
+        this.runtimeVersion = detectRuntimeVersion();
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(dataDir.getParent(), new VelocityLogger());
 
@@ -106,7 +109,7 @@ public class VelocityGeyserUpdaterPlugin {
 
     private void runAsyncCheck(boolean manual, CommandSource sender) {
         proxy.getScheduler().buildTask(this, () -> {
-            UpdaterService service = new UpdaterService(new VelocityLogger(), cfg);
+            UpdaterService service = new UpdaterService(new VelocityLogger(), cfg, runtimeVersion);
             if (manual) {
                 send(sender, cfg.messages.prefix + cfg.messages.manualTriggered);
             } else {

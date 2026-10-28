@@ -29,15 +29,21 @@ import java.util.stream.Collectors;
 public class UpdaterService {
     private static final String BASE = "https://download.geysermc.org/v2/projects";
     private static final String MODRINTH_BASE = "https://api.modrinth.com/v2/project";
-    private static final String USER_AGENT = "GeyserUpdater/1.1.0";
+    private static final String USER_AGENT = "GeyserUpdater/1.2.0";
 
     private final HttpClient http;
     private final LogAdapter log;
     private final Config cfg;
+    private final String runtimeVersion;
 
     public UpdaterService(LogAdapter log, Config cfg) {
+        this(log, cfg, null);
+    }
+
+    public UpdaterService(LogAdapter log, Config cfg, String runtimeVersion) {
         this.log = log;
         this.cfg = cfg;
+        this.runtimeVersion = runtimeVersion;
         this.http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.ALWAYS)
                 .connectTimeout(Duration.ofSeconds(15))
@@ -118,11 +124,14 @@ public class UpdaterService {
         return results;
     }
 
-    private List<Project> collectTargets() {
+    List<Project> collectTargets() {
         List<Project> targets = new ArrayList<>();
         if (cfg.targets.geyser) targets.add(Project.GEYSER);
         if (cfg.targets.floodgate) targets.add(Project.FLOODGATE);
         if (cfg.targets.mcxboxbroadcast) targets.add(Project.MCXBOXBROADCAST);
+        if (cfg.targets.viaversion) targets.add(Project.VIAVERSION);
+        if (cfg.targets.viabackwards) targets.add(Project.VIABACKWARDS);
+        if (cfg.targets.viarewind) targets.add(Project.VIAREWIND);
         return targets;
     }
 
@@ -134,6 +143,15 @@ public class UpdaterService {
 
             Path existing = findExistingJar(project, platform, baseDir);
             DownloadSpec spec = resolveDownloadSpec(project, platform);
+
+            if (project.isViaPlugin() && existing != null) {
+                String installed = ViaJarCompatibility.installedVersion(existing, platform);
+                if (ViaRelease.compareVersions(installed, spec.version) > 0) {
+                    log.warn("Preserving " + project.fileHint() + " " + installed
+                            + "; compatible release " + spec.version + " would be a downgrade.");
+                    return new UpdateOutcome(project, false, true, Optional.empty());
+                }
+            }
 
             log.info("Resolved latest " + project.apiName() + " version " + spec.version + " build #" + spec.build
                     + " for " + platform.displayName() + " using download key '" + spec.downloadKey + "'.");
@@ -153,6 +171,10 @@ public class UpdaterService {
             tmp = Files.createTempFile("geyserupdater-" + project.apiName(), ".jar");
             long bytes = downloadTo(spec.url, tmp);
             log.info("Downloaded " + project.apiName() + " build artifact (" + bytes + " bytes).");
+
+            if (project.isViaPlugin()) {
+                ViaJarCompatibility.verify(tmp, platform, Runtime.version().feature());
+            }
 
             if (spec.expectedSha256 != null && !spec.expectedSha256.isBlank()) {
                 String actual = FileUtils.sha256(tmp);
@@ -212,6 +234,14 @@ public class UpdaterService {
     }
 
     private DownloadSpec resolveDownloadSpec(Project project, Platform platform) throws IOException {
+        if (project.isViaPlugin()) {
+            if (platform == Platform.BUNGEECORD) {
+                throw new NoCompatibleBuildException("Current official Via plugin releases support Paper/Spigot and Velocity; "
+                        + "BungeeCord requires a separate Via integration. Existing JAR was not changed.");
+            }
+            ViaRelease release = fetchViaRelease(project, platform);
+            return new DownloadSpec(release.url(), "hangar-compatible-release", release.version(), 0, release.sha256());
+        }
         if (project == Project.MCXBOXBROADCAST) {
             String url = fetchModrinthLatestUrl(project.apiName());
             return new DownloadSpec(url, "modrinth", "latest", 0, null);
@@ -227,6 +257,33 @@ public class UpdaterService {
                 + "/downloads/" + downloadKey;
 
         return new DownloadSpec(url, downloadKey, metadata.version, metadata.build, selected == null ? null : selected.sha256);
+    }
+
+    private ViaRelease fetchViaRelease(Project project, Platform platform) throws IOException {
+        String version = ViaRelease.runtimeVersion(runtimeVersion);
+        String platformKey = platform == Platform.VELOCITY ? "VELOCITY" : "PAPER";
+        String url = "https://hangar.papermc.io/api/v1/projects/ViaVersion/" + project.fileHint()
+                + "/versions?channel=Release&platform=" + platformKey + "&platformVersion=" + version + "&limit=100";
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(60))
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json")
+                .GET().build();
+        try {
+            HttpResponse<String> response = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IOException("HTTP " + response.statusCode() + " when fetching " + url);
+            }
+            ViaRelease release = ViaRelease.select(project, platform, version, response.body())
+                    .orElseThrow(() -> new NoCompatibleBuildException("No confirmed stable " + project.fileHint()
+                            + " release for " + platform.displayName() + " " + version + ". Existing JAR preserved."));
+            log.info("Selected " + project.fileHint() + " " + release.version() + " for "
+                    + platform.displayName() + " " + version + " (official Hangar compatibility metadata).");
+            return release;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted", e);
+        }
     }
 
     private String resolveDownloadKey(BuildMetadata metadata, Platform platform, Project project) throws NoCompatibleBuildException {
@@ -349,6 +406,8 @@ public class UpdaterService {
             });
             case MCXBOXBROADCAST -> fileName.equals("mcxboxbroadcast.jar")
                     || hasVersionedJarName(fileName, "mcxboxbroadcast");
+            case VIAVERSION, VIABACKWARDS, VIAREWIND -> fileName.equals(project.apiName() + ".jar")
+                    || hasVersionedJarName(fileName, project.apiName());
         };
     }
 
@@ -430,6 +489,9 @@ public class UpdaterService {
                 break;
             case MCXBOXBROADCAST:
                 filename = "mcxboxbroadcast.jar";
+                break;
+            case VIAVERSION, VIABACKWARDS, VIAREWIND:
+                filename = project.fileHint() + ".jar";
                 break;
             default:
                 filename = "plugin.jar";
@@ -697,7 +759,7 @@ public class UpdaterService {
         }
 
         Path stagedDir;
-        if (project == Project.GEYSER || project == Project.FLOODGATE) {
+        if (project == Project.GEYSER || project == Project.FLOODGATE || project.isViaPlugin()) {
             // Spigot/Paper applies jars from plugins/update on startup.
             stagedDir = pluginsDir.resolve("update");
         } else if (project == Project.MCXBOXBROADCAST) {

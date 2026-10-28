@@ -72,3 +72,20 @@ Notes / Known Limitations
 
 License
 - Apache License 2.0
+
+### Via plugin updates (1.2.0)
+
+Add `viaversion`, `viabackwards`, and `viarewind` under `targets` in config.yml.
+Each defaults to `false`; set individual targets to `true` to enable updates. Existing configs are preserved.
+Restart after changing configuration. All automatic triggers and `/geyserupdate` use these switches; no new commands or permissions.
+Enable/update the required ViaVersion dependency alongside ViaBackwards/ViaRewind. Use a supported server and Java version for each upstream release.
+ViaRewind also requires ViaBackwards. Via updates are skipped on BungeeCord because current official JARs require a separate Bungee integration; existing JARs are preserved.
+The updater selects stable Release-channel builds from official ViaVersion Hangar projects whose explicit platform metadata includes the exact detected Paper/Spigot Minecraft or Velocity version,
+checks upstream SHA-256 when available, and preserves existing filenames. Missing targets are installed using the standard plugin name.
+Paper/Spigot locked JARs are staged in `plugins/update`. Restart to apply updates. API/download failures preserve existing JARs.
+
+Compatibility checks are mandatory for Via targets: unknown runtime versions, missing platform metadata, unsupported patch versions and API failures preserve existing JARs.
+Paper 1.21 and 1.21.1 are treated separately. Velocity uses its own proxy version, not a connected client's Minecraft version.
+Downloaded JARs are checked for the correct platform descriptor and Java class-file requirements before replacement.
+If the selected build needs a newer Java version, the update is stopped; older Java-compatible artifacts are not searched automatically.
+Downgrades are skipped, and an unreadable installed Via version also prevents replacement.

@@ -26,6 +26,9 @@ public class Config {
         public boolean geyser = true;
         public boolean floodgate = true;
         public boolean mcxboxbroadcast = false;
+        public boolean viaversion = false;
+        public boolean viabackwards = false;
+        public boolean viarewind = false;
     }
 
     public PostUpdate postUpdate = new PostUpdate();

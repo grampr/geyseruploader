@@ -29,6 +29,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     private ConfigManager cfgMgr;
     private Config cfg;
     private Platform runtimePlatform;
+    private String runtimeVersion;
 
     @Override
     public void onEnable() {
@@ -36,6 +37,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
         this.runtimePlatform = detectRuntimePlatform();
+        this.runtimeVersion = detectRuntimeVersion();
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new SpigotLogger());
         applyStagedExtensionUpdates();
@@ -126,7 +128,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
 
     private void runAsyncCheck(boolean manual, CommandSender sender) {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            UpdaterService service = new UpdaterService(new SpigotLogger(), cfg);
+            UpdaterService service = new UpdaterService(new SpigotLogger(), cfg, runtimeVersion);
             if (manual) {
                 sendTo(sender, cfg.messages.prefix + cfg.messages.manualTriggered);
             } else {

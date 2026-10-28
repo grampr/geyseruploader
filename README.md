@@ -1,9 +1,10 @@
 # GeyserUpdater
 
-GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeCord, Velocity をサポート。
+GeyserMC / Floodgate / ViaVersion / ViaBackwards / ViaRewind の自動更新プラグイン（1.2.0）。Spigot(Paper 等), BungeeCord, Velocity をサポート。
 
 機能
 - GeyserMC と Floodgate の最新版（安定版）を Jenkins/ダウンロードAPI から取得し、plugins ディレクトリの既存JARを上書き
+- ViaVersion / ViaBackwards / ViaRewind の実行環境に対応する安定版を個別に自動更新（任意）
 - MCXboxBroadcast の最新版（Modrinth）を取得し、Geyser の extensions フォルダへ配置（任意）
 - 自動更新チェック
   - サーバー起動時
@@ -41,6 +42,7 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 - adminLogin.enabled: 権限保持者ログイン時チェックの有効/無効
 - adminLogin.permission: トリガーとなる権限（デフォルト: geyserupdater.admin）
 - targets.geyser | targets.floodgate | targets.mcxboxbroadcast: 更新対象の選択
+- targets.viaversion | targets.viabackwards | targets.viarewind: Via系を個別に更新（既定値: false）
 - postUpdate.notifyConsole: コンソールへ通知
 - postUpdate.notifyPlayersWithPermission: 権限保持者にチャットで通知
 - postUpdate.runRestartCommand: 更新後に自動で再起動コマンドを実行
@@ -71,3 +73,39 @@ GeyserMC / Floodgate の自動更新プラグイン。Spigot(Paper 等), BungeeC
 
 ライセンス
 - Apache License 2.0
+
+### Via系の自動更新（1.2.0）
+
+既存の `config.yml` の `targets:` 内に必要な項目を追加してください。
+項目がない場合は無効のままで、既存設定は書き換えません。
+
+```yaml
+targets:
+  geyser: true
+  floodgate: true
+  mcxboxbroadcast: false
+  viaversion: true
+  viabackwards: true
+  viarewind: false
+```
+
+設定変更後はサーバー/プロキシを再起動してください。起動時・定期・管理者ログイン時・
+`/geyserupdate` はすべてこの対象設定を使います。コマンドと権限の追加はありません。
+ViaBackwards/ViaRewindを使う場合は依存するViaVersionも導入し、更新対象に含めてください。
+各プラグインの現行版が対応するサーバー/Java環境で使用してください。
+現行の公式Via JARはBungeeCord用とは異なるため、BungeeCordではVia系をスキップし、既存JARを維持します。
+ViaRewindを使う場合はViaBackwardsも必要です。
+
+取得元はViaVersion公式のHangar配布です。実際のPaper/SpigotのMinecraftバージョン
+（例: `1.21` と `1.21.1` は区別）またはVelocityバージョンを自動検出し、
+Hangarの対応プラットフォーム情報に明記されたReleaseチャンネルの候補から最新版を選びます。
+Snapshot、対応情報がない版、別のパッチバージョン専用の版は選びません。
+対応候補がない場合、環境のバージョンを判別できない場合、通信に失敗した場合は既存JARを維持します。
+ダウンロード後は実行中のJavaで読み込めるクラスバージョンと対象プラットフォームの記述ファイルを検証し、
+Java要件を満たさなければ更新を中止します（古いJava向けの別候補を自動探索する機能はありません）。
+導入済みViaより古い版へのダウングレードも行いません。
+既存の `ViaVersion-<version>.jar` 等は同じファイル名で置換し、見つからない場合は
+`ViaVersion.jar` / `ViaBackwards.jar` / `ViaRewind.jar` を作成します。
+上流SHA-256がある場合は検証し、同一ならダウンロードを省略します。
+Paper/SpigotでJARがロックされている場合は `plugins/update` に保存します。
+更新の反映には再起動が必要です。Hangar APIの制限や通信失敗時は既存JARを維持します。

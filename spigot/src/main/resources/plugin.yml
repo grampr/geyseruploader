@@ -1,15 +1,15 @@
 name: GeyserUpdater
 main: org.geyserupdater.spigot.SpigotGeyserUpdaterPlugin
-version: 1.1.0
+version: 1.2.0
 api-version: 1.19
-author: neha
+author: grampr
 load: STARTUP
 loadbefore:
   - Geyser-Spigot
   - floodgate
 commands:
   geyserupdate:
-    description: Geyser/Floodgateの更新チェックを実行します
+    description: Geyser/Floodgate/Via系の更新チェックを実行します
     usage: /geyserupdate
     permission: geyserupdater.admin
 permissions:
