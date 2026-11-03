@@ -3,6 +3,7 @@ package org.geyserupdater.core;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
+import java.util.List;
+import java.util.TreeSet;
 
 public class ConfigManager {
     private final Path dataFolder;
@@ -84,8 +87,26 @@ public class ConfigManager {
             cfg.postUpdate.notifyPlayersWithPermission = asBool(postUpdate, "notifyPlayersWithPermission", cfg.postUpdate.notifyPlayersWithPermission);
             cfg.postUpdate.runRestartCommand = asBool(postUpdate, "runRestartCommand", cfg.postUpdate.runRestartCommand);
             cfg.postUpdate.restartCommand = asStr(postUpdate, "restartCommand", cfg.postUpdate.restartCommand);
-            cfg.postUpdate.restartDelaySeconds = Math.max(0,
-                    asInt(postUpdate, "restartDelaySeconds", cfg.postUpdate.restartDelaySeconds));
+            cfg.postUpdate.restartDelaySeconds = seconds(postUpdate.get("restartDelaySeconds"), 0);
+
+            Map<String, Object> restart = asMap(map, "restart");
+            cfg.restart.delay = seconds(restart.get("delay"), cfg.postUpdate.restartDelaySeconds);
+            Map<String, Object> notifications = asMap(restart, "notifications");
+            Object enabled = notifications.get("enabled");
+            if (enabled instanceof Boolean value) cfg.restart.notifications.enabled = value;
+            else if ("true".equalsIgnoreCase(String.valueOf(enabled))) cfg.restart.notifications.enabled = true;
+            else if ("false".equalsIgnoreCase(String.valueOf(enabled))) cfg.restart.notifications.enabled = false;
+            if (notifications.get("times") instanceof List<?> values) {
+                TreeSet<Integer> times = new TreeSet<>(Collections.reverseOrder());
+                for (Object value : values) {
+                    int time = seconds(value, 0);
+                    if (time > 0 && time <= cfg.restart.delay) times.add(time);
+                }
+                cfg.restart.notifications.times = List.copyOf(times);
+            }
+            if (notifications.get("message") instanceof String message) {
+                cfg.restart.notifications.message = message;
+            }
 
             // messages
             Map<String, Object> messages = asMap(map, "messages");
@@ -116,9 +137,11 @@ public class ConfigManager {
             cfg.messages.noPermission = asStr(effectiveMessages, "noPermission", cfg.messages.noPermission);
 
             return cfg;
-        } catch (IOException e) {
+        } catch (IOException | YAMLException e) {
             e.printStackTrace();
-            return new Config();
+            Config fallback = new Config();
+            fallback.enabled = false;
+            return fallback;
         }
     }
 
@@ -148,6 +171,15 @@ public class ConfigManager {
         if (o instanceof Number n) return n.intValue();
         if (o == null) return def;
         try { return Integer.parseInt(String.valueOf(o)); } catch (Exception e) { return def; }
+    }
+
+    private static int seconds(Object value, int fallback) {
+        if (value == null) return fallback;
+        try {
+            return Math.max(0, Integer.parseInt(String.valueOf(value)));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     public Path getConfigPath() {

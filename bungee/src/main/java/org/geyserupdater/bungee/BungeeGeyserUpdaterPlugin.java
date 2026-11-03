@@ -1,6 +1,7 @@
 package org.geyserupdater.bungee;
 
 import net.md_5.bungee.api.CommandSender;
+import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -11,6 +12,7 @@ import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.event.EventHandler;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
+import org.geyserupdater.core.RestartCountdown;
 import org.geyserupdater.core.Platform;
 import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
@@ -25,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
     private ConfigManager cfgMgr;
     private Config cfg;
+    private RestartCountdown restartCountdown;
+    private volatile boolean stopping;
 
     @Override
     public void onEnable() {
@@ -34,6 +38,14 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
 
         this.cfgMgr = new ConfigManager(getDataFolder().toPath());
         this.cfg = cfgMgr.loadOrCreateDefault();
+        this.stopping = false;
+        this.restartCountdown = new RestartCountdown(
+                (action, seconds) -> getProxy().getScheduler().schedule(this, action, seconds, TimeUnit.SECONDS)::cancel,
+                message -> getProxy().getPlayers().forEach(player -> send(player, message)),
+                command -> {
+                    if (!stopping) getProxy().getPluginManager().dispatchCommand(getProxy().getConsole(), command);
+                },
+                new BungeeLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new BungeeLogger());
 
@@ -81,6 +93,7 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
     }
 
     private void runAsyncCheck(boolean manual, CommandSender sender) {
+        if (stopping) return;
         ProxyServer.getInstance().getScheduler().runAsync(this, () -> {
             UpdaterService service = new UpdaterService(new BungeeLogger(), cfg);
             if (manual) {
@@ -99,16 +112,7 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
 
             if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
-                if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    ProxyServer.getInstance().getScheduler().schedule(this,
-                            () -> ProxyServer.getInstance().getPluginManager().dispatchCommand(
-                                    ProxyServer.getInstance().getConsole(),
-                                    cfg.postUpdate.restartCommand
-                            ),
-                            cfg.postUpdate.restartDelaySeconds,
-                            TimeUnit.SECONDS
-                    );
-                }
+                restartCountdown.request(cfg);
             }
 
             msg(sender, cfg.messages.done);
@@ -137,11 +141,19 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
     }
 
     private void send(CommandSender sender, String message) {
+        if (stopping) return;
         if (sender != null) {
-            sender.sendMessage(new TextComponent(message));
+            sender.sendMessage(TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', message)));
         } else {
             info(message);
         }
+    }
+
+    @Override
+    public void onDisable() {
+        stopping = true;
+        if (restartCountdown != null) restartCountdown.close();
+        getProxy().getScheduler().cancel(this);
     }
 
     private void info(String message) {

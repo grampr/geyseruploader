@@ -74,4 +74,60 @@ public class ConfigManagerTest {
 
         assertEquals(0, config.postUpdate.restartDelaySeconds);
     }
+
+    private Config loadRestartConfig(String content) throws Exception {
+        Path folder = temporaryFolder.newFolder().toPath();
+        Files.writeString(folder.resolve("config.yml"), content, StandardCharsets.UTF_8);
+        Config cfg = new ConfigManager(folder).loadOrCreateDefault();
+        assertEquals(content, Files.readString(folder.resolve("config.yml")));
+        return cfg;
+    }
+
+    @Test
+    public void preservesLegacyDelayAndNewDelayTakesPrecedenceIncludingZero() throws Exception {
+        String legacy = "postUpdate:\n  restartDelaySeconds: 60\n";
+        assertEquals(60, loadRestartConfig(legacy).restart.delay);
+        assertEquals(120, loadRestartConfig(legacy + "restart:\n  delay: 120\n").restart.delay);
+        assertEquals(0, loadRestartConfig(legacy + "restart:\n  delay: 0\n").restart.delay);
+        assertEquals(60, loadRestartConfig(legacy + "restart:\n  notifications:\n    enabled: false\n").restart.delay);
+        assertEquals(0, loadRestartConfig("enabled: true\n").restart.delay);
+    }
+
+    @Test
+    public void loadsCustomCountdownAndSanitizesTimes() throws Exception {
+        Config cfg = loadRestartConfig("restart:\n  delay: 30\n  notifications:\n    enabled: true\n"
+                + "    times: [30, 5, 60, 5, -1, 0, abc, null, 2.5, true, '1']\n"
+                + "    message: '&eRestart in {seconds} seconds'\n");
+        assertEquals(java.util.List.of(30, 5, 1), cfg.restart.notifications.times);
+        assertEquals("&eRestart in {seconds} seconds", cfg.restart.notifications.message);
+        assertTrue(cfg.restart.notifications.enabled);
+    }
+
+    @Test
+    public void invalidDelayFallsBackWithoutOverflowAndNegativeDelayDisablesWaiting() throws Exception {
+        String legacy = "postUpdate:\n  restartDelaySeconds: 60\nrestart:\n  delay: ";
+        for (String invalid : java.util.List.of("oops", "9223372036854775808", "4294967296", "2.5", "true", "[10]")) {
+            assertEquals(60, loadRestartConfig(legacy + invalid + "\n").restart.delay);
+        }
+        assertEquals(0, loadRestartConfig(legacy + "-10\n").restart.delay);
+    }
+
+    @Test
+    public void wrongNotificationTypesKeepDefaultsAndEmptyTimesDisableMessages() throws Exception {
+        Config cfg = loadRestartConfig("restart:\n  delay: 120\n  notifications:\n"
+                + "    enabled: invalid\n    times: invalid\n    message: [invalid]\n");
+        assertTrue(cfg.restart.notifications.enabled);
+        assertEquals(new Config.Notifications().times, cfg.restart.notifications.times);
+        assertEquals(new Config.Notifications().message, cfg.restart.notifications.message);
+        cfg = loadRestartConfig("restart:\n  notifications:\n    enabled: false\n    times: []\n");
+        assertFalse(cfg.restart.notifications.enabled);
+        assertTrue(cfg.restart.notifications.times.isEmpty());
+    }
+
+    @Test
+    public void malformedYamlDoesNotCrashAndDisablesAutomaticWork() throws Exception {
+        Config cfg = loadRestartConfig("restart: [unclosed\n");
+        assertFalse(cfg.enabled);
+        assertFalse(cfg.postUpdate.runRestartCommand);
+    }
 }

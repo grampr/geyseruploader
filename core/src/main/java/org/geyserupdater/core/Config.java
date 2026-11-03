@@ -1,6 +1,7 @@
 package org.geyserupdater.core;
 
 import java.util.Locale;
+import java.util.List;
 
 public class Config {
     public boolean enabled = true;
@@ -38,6 +39,19 @@ public class Config {
         public boolean runRestartCommand = false;
         public String restartCommand = "restart";
         public int restartDelaySeconds = 0;
+    }
+
+    public Restart restart = new Restart();
+    public static class Restart {
+        // Existing configs without restart.delay retain their legacy delay (default: immediate).
+        public int delay = 0;
+        public Notifications notifications = new Notifications();
+    }
+
+    public static class Notifications {
+        public boolean enabled = true;
+        public List<Integer> times = List.of(120, 60, 30, 10, 5, 4, 3, 2, 1);
+        public String message = "&e[GeyserUpdater] サーバーはあと {seconds} 秒で再起動します。";
     }
 
     public Messages messages = new Messages();

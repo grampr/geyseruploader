@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 public class UpdaterService {
     private static final String BASE = "https://download.geysermc.org/v2/projects";
     private static final String MODRINTH_BASE = "https://api.modrinth.com/v2/project";
-    private static final String USER_AGENT = "GeyserUpdater/1.2.0";
+    private static final String USER_AGENT = "GeyserUpdater/1.3.0";
 
     private final HttpClient http;
     private final LogAdapter log;

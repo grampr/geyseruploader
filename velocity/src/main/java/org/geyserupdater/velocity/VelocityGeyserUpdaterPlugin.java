@@ -5,12 +5,14 @@ import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
+import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
-import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
+import org.geyserupdater.core.RestartCountdown;
 import org.geyserupdater.core.Platform;
 import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
@@ -26,7 +28,7 @@ import java.util.logging.Logger;
 @Plugin(
         id = "geyserupdater",
         name = "GeyserUpdater",
-        version = "1.2.0",
+        version = "1.3.0",
         description = "Auto-updater for GeyserMC, Floodgate and Via plugins",
         authors = {"grampr"}
 )
@@ -38,6 +40,8 @@ public class VelocityGeyserUpdaterPlugin {
     private ConfigManager cfgMgr;
     private Config cfg;
     private String runtimeVersion;
+    private RestartCountdown restartCountdown;
+    private volatile boolean stopping;
 
     @Inject
     public VelocityGeyserUpdaterPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDir) {
@@ -57,6 +61,14 @@ public class VelocityGeyserUpdaterPlugin {
         this.cfgMgr = new ConfigManager(dataDir);
         this.cfg = cfgMgr.loadOrCreateDefault();
         this.runtimeVersion = detectRuntimeVersion();
+        this.restartCountdown = new RestartCountdown(
+                (action, seconds) -> proxy.getScheduler().buildTask(this, action)
+                        .delay(seconds, TimeUnit.SECONDS).schedule()::cancel,
+                message -> proxy.getAllPlayers().forEach(player -> send(player, message)),
+                command -> {
+                    if (!stopping) proxy.getCommandManager().executeAsync(proxy.getConsoleCommandSource(), command);
+                },
+                new VelocityLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(dataDir.getParent(), new VelocityLogger());
 
@@ -108,6 +120,7 @@ public class VelocityGeyserUpdaterPlugin {
     }
 
     private void runAsyncCheck(boolean manual, CommandSource sender) {
+        if (stopping) return;
         proxy.getScheduler().buildTask(this, () -> {
             UpdaterService service = new UpdaterService(new VelocityLogger(), cfg, runtimeVersion);
             if (manual) {
@@ -126,15 +139,7 @@ public class VelocityGeyserUpdaterPlugin {
 
             if (summary.anyUpdated()) {
                 logger.info(cfg.messages.promptRestart);
-                if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    proxy.getScheduler().buildTask(this,
-                                    () -> proxy.getCommandManager().executeAsync(
-                                            proxy.getConsoleCommandSource(),
-                                            cfg.postUpdate.restartCommand
-                                    ))
-                            .delay(cfg.postUpdate.restartDelaySeconds, TimeUnit.SECONDS)
-                            .schedule();
-                }
+                restartCountdown.request(cfg);
             }
 
             msg(sender, cfg.messages.done);
@@ -162,11 +167,19 @@ public class VelocityGeyserUpdaterPlugin {
     }
 
     private void send(CommandSource sender, String message) {
+        if (stopping) return;
         if (sender != null) {
-            sender.sendMessage(Component.text(message));
+            sender.sendMessage(LegacyComponentSerializer.legacyAmpersand().deserialize(message.replace('§', '&')));
         } else {
             logger.info(message);
         }
+    }
+
+    @Subscribe
+    public void onProxyShutdown(ProxyShutdownEvent event) {
+        stopping = true;
+        if (restartCountdown != null) restartCountdown.close();
+        proxy.getScheduler().tasksByPlugin(this).forEach(task -> task.cancel());
     }
 
     private class UpdateCommand implements SimpleCommand {

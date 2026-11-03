@@ -1,6 +1,7 @@
 package org.geyserupdater.spigot;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -10,6 +11,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.geyserupdater.core.Config;
 import org.geyserupdater.core.ConfigManager;
+import org.geyserupdater.core.RestartCountdown;
 import org.geyserupdater.core.Platform;
 import org.geyserupdater.core.UpdateOutcomeSummary;
 import org.geyserupdater.core.UpdaterService;
@@ -30,6 +32,8 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     private Config cfg;
     private Platform runtimePlatform;
     private String runtimeVersion;
+    private RestartCountdown restartCountdown;
+    private volatile boolean stopping;
 
     @Override
     public void onEnable() {
@@ -38,6 +42,12 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
         this.cfg = cfgMgr.loadOrCreateDefault();
         this.runtimePlatform = detectRuntimePlatform();
         this.runtimeVersion = detectRuntimeVersion();
+        this.stopping = false;
+        this.restartCountdown = new RestartCountdown(
+                (action, seconds) -> Bukkit.getScheduler().runTaskLater(this, action, seconds * 20L)::cancel,
+                message -> Bukkit.getOnlinePlayers().forEach(player -> sendTo(player, message)),
+                command -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command),
+                new SpigotLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new SpigotLogger());
         applyStagedExtensionUpdates();
@@ -127,6 +137,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     }
 
     private void runAsyncCheck(boolean manual, CommandSender sender) {
+        if (stopping) return;
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             UpdaterService service = new UpdaterService(new SpigotLogger(), cfg, runtimeVersion);
             if (manual) {
@@ -145,12 +156,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
 
             if (summary.anyUpdated()) {
                 info(cfg.messages.promptRestart);
-                if (cfg.postUpdate.runRestartCommand && cfg.postUpdate.restartCommand != null && !cfg.postUpdate.restartCommand.isBlank()) {
-                    long delayTicks = cfg.postUpdate.restartDelaySeconds * 20L;
-                    Bukkit.getScheduler().runTaskLater(this,
-                            () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cfg.postUpdate.restartCommand),
-                            delayTicks);
-                }
+                restartCountdown.request(cfg);
             }
 
             msg(sender, cfg.messages.done);
@@ -158,19 +164,30 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
     }
 
     private void msg(CommandSender sender, String message) {
-        if (sender != null) {
-            sender.sendMessage(cfg.messages.prefix + message);
-        } else {
-            info(message);
-        }
+        if (sender != null) sendTo(sender, cfg.messages.prefix + message);
+        else info(message);
     }
 
     private void sendTo(CommandSender sender, String message) {
-        if (sender != null) {
-            sender.sendMessage(message);
-        } else {
+        if (stopping) return;
+        if (sender == null) {
             info(message);
+        } else if (Bukkit.isPrimaryThread()) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+        } else if (isEnabled()) {
+            try {
+                Bukkit.getScheduler().runTask(this, () -> sendTo(sender, message));
+            } catch (org.bukkit.plugin.IllegalPluginAccessException ignored) {
+                // Disable may race with a completed asynchronous download.
+            }
         }
+    }
+
+    @Override
+    public void onDisable() {
+        stopping = true;
+        if (restartCountdown != null) restartCountdown.close();
+        Bukkit.getScheduler().cancelTasks(this);
     }
 
     private void info(String message) {

@@ -24,7 +24,15 @@ postUpdate:
   notifyPlayersWithPermission: true
   runRestartCommand: false
   restartCommand: "restart"
+  # 旧設定: restart.delay が未指定の場合だけ使います
   restartDelaySeconds: 0
+restart:
+  # 0で待機・通知なし。自動再起動はpostUpdate.runRestartCommandで有効化
+  delay: 120
+  notifications:
+    enabled: true
+    times: [120, 60, 30, 10, 5, 4, 3, 2, 1]
+    message: "&e[GeyserUpdater] サーバーはあと {seconds} 秒で再起動します。"
 messages:
   ja:
     prefix: "§a[GeyserUpdater]§r "

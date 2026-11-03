@@ -1,7 +1,7 @@
 {
   "id": "geyserupdater",
   "name": "GeyserUpdater",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Auto-updater for GeyserMC, Floodgate and Via plugins",
   "authors": ["grampr"],
   "main": "org.geyserupdater.velocity.VelocityGeyserUpdaterPlugin"
