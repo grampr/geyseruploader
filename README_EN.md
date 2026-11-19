@@ -100,6 +100,7 @@ The countdown starts only after an update check has finished applying at least o
 ```yaml
 restart:
   delay: 120
+  waitForEmpty: false
   notifications:
     enabled: true
     times: [120, 60, 30, 10, 5, 4, 3, 2, 1]
@@ -107,6 +108,8 @@ restart:
 ```
 
 Paper/Spigot, Velocity and BungeeCord use the same settings. Messages go to all currently online players, including all connected Velocity players, regardless of admin permission. This is independent of admin update notices. `{seconds}` and legacy `&` color codes are supported.
+
+Set `restart.waitForEmpty: true` to wait until no players are online before running the restart command. After the configured delay, occupancy is checked once per second; on proxies, this includes all players connected to the proxy. The countdown notifications still describe the configured delay, so the actual restart can occur later. The option defaults to `false` and does not enable automatic restarts by itself.
 
 Existing configs are never rewritten. If `restart.delay` is absent, the legacy `postUpdate.restartDelaySeconds` is preserved (default 0). An explicit new delay takes precedence, including 0. New generated configs use 120 seconds but automatic restarts remain disabled by default. Delay 0 schedules the command without waiting or countdown messages.
 

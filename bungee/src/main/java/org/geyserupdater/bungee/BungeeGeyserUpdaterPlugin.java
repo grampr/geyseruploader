@@ -45,6 +45,7 @@ public class BungeeGeyserUpdaterPlugin extends Plugin implements Listener {
                 command -> {
                     if (!stopping) getProxy().getPluginManager().dispatchCommand(getProxy().getConsole(), command);
                 },
+                () -> getProxy().getPlayers().isEmpty(),
                 new BungeeLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new BungeeLogger());

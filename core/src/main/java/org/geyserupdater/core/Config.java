@@ -45,6 +45,7 @@ public class Config {
     public static class Restart {
         // Existing configs without restart.delay retain their legacy delay (default: immediate).
         public int delay = 0;
+        public boolean waitForEmpty = false;
         public Notifications notifications = new Notifications();
     }
 

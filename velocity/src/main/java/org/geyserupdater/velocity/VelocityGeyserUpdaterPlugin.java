@@ -68,6 +68,7 @@ public class VelocityGeyserUpdaterPlugin {
                 command -> {
                     if (!stopping) proxy.getCommandManager().executeAsync(proxy.getConsoleCommandSource(), command);
                 },
+                () -> proxy.getAllPlayers().isEmpty(),
                 new VelocityLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(dataDir.getParent(), new VelocityLogger());

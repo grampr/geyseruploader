@@ -91,6 +91,7 @@ public class ConfigManager {
 
             Map<String, Object> restart = asMap(map, "restart");
             cfg.restart.delay = seconds(restart.get("delay"), cfg.postUpdate.restartDelaySeconds);
+            cfg.restart.waitForEmpty = asBool(restart, "waitForEmpty", cfg.restart.waitForEmpty);
             Map<String, Object> notifications = asMap(restart, "notifications");
             Object enabled = notifications.get("enabled");
             if (enabled instanceof Boolean value) cfg.restart.notifications.enabled = value;

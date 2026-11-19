@@ -47,6 +47,7 @@ public class SpigotGeyserUpdaterPlugin extends JavaPlugin implements Listener {
                 (action, seconds) -> Bukkit.getScheduler().runTaskLater(this, action, seconds * 20L)::cancel,
                 message -> Bukkit.getOnlinePlayers().forEach(player -> sendTo(player, message)),
                 command -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command),
+                () -> Bukkit.getOnlinePlayers().isEmpty(),
                 new SpigotLogger());
 
         JarMigrationUtil.migrateNestedPluginsIfNeeded(getDataFolder().toPath().getParent(), new SpigotLogger());
