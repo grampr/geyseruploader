@@ -76,4 +76,11 @@ public class ViaReleaseTest {
         assertTrue(VersionCompatibility.evaluate(Platform.PAPER, "1.21-R0.1-SNAPSHOT").compatible());
         assertFalse(VersionCompatibility.evaluate(Platform.PAPER, "1.18.2-R0.1-SNAPSHOT").compatible());
     }
+
+    @Test
+    public void parsesNewPaperStyleRuntimeVersion() throws Exception {
+        assertEquals("26.3", ViaRelease.runtimeVersion("26.3.build.255-stable"));
+        assertEquals("26.1.2", ViaRelease.runtimeVersion("26.1.2.build.63-stable"));
+        assertEquals("1.21.1", ViaRelease.runtimeVersion("1.21.1-R0.1-SNAPSHOT"));
+    }
 }
