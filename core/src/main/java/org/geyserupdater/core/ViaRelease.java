@@ -13,8 +13,7 @@ import java.util.regex.Pattern;
 
 /** Official Hangar release with an explicit match for the running platform version. */
 record ViaRelease(String version, String url, String sha256) {
-    private static final Pattern RUNTIME = Pattern.compile("^(\\d+\\.\\d+(?:\\.\\d+)?)(?:$|[-+])");
-
+    private static final Pattern RUNTIME = Pattern.compile("^(\\d+\\.\\d+(?:\\.\\d+)?)(?:\\.build\\.|$|[-+])");
     static String runtimeVersion(String raw) throws IOException {
         Matcher matcher = RUNTIME.matcher(raw == null ? "" : raw.trim());
         if (!matcher.find()) {
