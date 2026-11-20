@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** One restart per plugin lifecycle, shared by all update checks and platforms. */
@@ -26,6 +27,7 @@ public final class RestartCountdown implements AutoCloseable {
     private final Scheduler scheduler;
     private final Consumer<String> broadcast;
     private final Consumer<String> restart;
+    private final BooleanSupplier vacant;
     private final LogAdapter log;
     private final List<Task> tasks = new ArrayList<>();
     private Task restartTask;
@@ -35,10 +37,12 @@ public final class RestartCountdown implements AutoCloseable {
     private boolean closed;
     private long generation;
 
-    public RestartCountdown(Scheduler scheduler, Consumer<String> broadcast, Consumer<String> restart, LogAdapter log) {
+    public RestartCountdown(Scheduler scheduler, Consumer<String> broadcast, Consumer<String> restart,
+                            BooleanSupplier vacant, LogAdapter log) {
         this.scheduler = scheduler;
         this.broadcast = broadcast;
         this.restart = restart;
+        this.vacant = vacant;
         this.log = log;
     }
 
@@ -63,7 +67,8 @@ public final class RestartCountdown implements AutoCloseable {
                     tasks.add(scheduler.schedule(() -> notifyPlayers(requestGeneration, time, message), (long) delay - time));
                 }
             }
-            restartTask = scheduler.schedule(() -> execute(requestGeneration, command), delay);
+            boolean waitForEmpty = config.restart.waitForEmpty;
+            restartTask = scheduler.schedule(() -> execute(requestGeneration, command, waitForEmpty), delay);
             return true;
         } catch (RuntimeException e) {
             generation++;
@@ -85,11 +90,30 @@ public final class RestartCountdown implements AutoCloseable {
         }
     }
 
-    private synchronized void execute(long requestGeneration, String command) {
+    private synchronized void execute(long requestGeneration, String command, boolean waitForEmpty) {
         if (requestGeneration != generation || closed || executed) return;
-        executed = true;
         // Velocity cancellation interrupts running tasks. Never cancel our own restart callback.
         restartTask = null;
+        if (waitForEmpty) {
+            boolean empty = false;
+            try {
+                empty = vacant.getAsBoolean();
+            } catch (RuntimeException e) {
+                log.error("Could not check whether the server is vacant", e);
+            }
+            if (!empty) {
+                try {
+                    restartTask = scheduler.schedule(() -> execute(requestGeneration, command, true), 1);
+                } catch (RuntimeException e) {
+                    cancelTasks();
+                    requested = false;
+                    generation++;
+                    log.error("Could not schedule vacancy check", e);
+                }
+                return;
+            }
+        }
+        executed = true;
         cancelTasks();
         try {
             restart.accept(command);

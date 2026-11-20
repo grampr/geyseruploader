@@ -125,6 +125,7 @@ postUpdate:
   restartCommand: "restart" # プロキシでは利用できる終了/再起動コマンドに変更
 restart:
   delay: 120
+  waitForEmpty: false
   notifications:
     enabled: true
     times: [120, 60, 30, 10, 5, 4, 3, 2, 1]
@@ -132,6 +133,7 @@ restart:
 ```
 
 - `restart.delay: 0` では従来どおり待機なしでコマンドを予約し、通知しません。
+- `restart.waitForEmpty: true` の場合、待機時間の終了後、プレイヤーがいなくなるまで1秒ごとに確認してから再起動します。プロキシでは接続中の全プレイヤーが対象です。カウントダウン通知は設定された待機時間を示すため、実際の再起動はそれより遅くなる場合があります。既定値は `false` で、この設定だけでは自動再起動は有効になりません。
 - `restart.delay` を追加していない既存configでは、`postUpdate.restartDelaySeconds` を引き継ぎます。両方ある場合は `restart.delay` が優先です。既存configは自動で書き換えません。
 - 通知は管理権限に関係なく、その時点でオンラインの全プレイヤーにチャットで送ります。Velocityはプロキシ接続中の全プレイヤーが対象です。既存の管理者向け更新通知設定とは独立しています。
 - `times` は残り秒数です。順不同で指定でき、重複・0以下・待機時間を超える値・不正な要素は除外します。`[]` または `enabled: false` なら通知せずに待機します。

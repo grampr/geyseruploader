@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -25,7 +26,7 @@ public class RestartCountdownTest {
         public void error(String message, Throwable error) { errors.add(message); }
     };
     private final RestartCountdown countdown = new RestartCountdown(scheduler,
-            messages::add, commands::add, log);
+            messages::add, commands::add, () -> false, log);
 
     private Config config(int delay) {
         Config cfg = new Config();
@@ -81,6 +82,57 @@ public class RestartCountdownTest {
     }
 
     @Test
+    public void vacantRestartWaitsUntilPlayersLeaveAfterTheDelay() {
+        AtomicBoolean vacant = new AtomicBoolean(true);
+        RestartCountdown timer = new RestartCountdown(scheduler, messages::add, commands::add, vacant::get, log);
+        Config cfg = config(5);
+        cfg.restart.waitForEmpty = true;
+        assertTrue(timer.request(cfg));
+        scheduler.advanceTo(4);
+        vacant.set(false);
+        scheduler.advanceTo(5);
+        assertTrue(commands.isEmpty());
+        scheduler.advanceTo(10);
+        assertTrue(commands.isEmpty());
+        vacant.set(true);
+        scheduler.advanceTo(11);
+        assertEquals(List.of("restart"), commands);
+        scheduler.advanceTo(20);
+        assertEquals(1, commands.size());
+    }
+
+    @Test
+    public void closeCancelsPendingVacancyCheck() {
+        RestartCountdown timer = new RestartCountdown(scheduler, messages::add, commands::add, () -> false, log);
+        Config cfg = config(0);
+        cfg.restart.waitForEmpty = true;
+        timer.request(cfg);
+        scheduler.advanceTo(0);
+        Runnable pending = scheduler.entries.get(1).action;
+        timer.close();
+        pending.run();
+        scheduler.advanceTo(10);
+        assertTrue(commands.isEmpty());
+    }
+
+    @Test
+    public void vacancyCheckFailureDefersRestart() {
+        AtomicInteger checks = new AtomicInteger();
+        RestartCountdown timer = new RestartCountdown(scheduler, messages::add, commands::add, () -> {
+            if (checks.getAndIncrement() == 0) throw new IllegalStateException("player list unavailable");
+            return true;
+        }, log);
+        Config cfg = config(0);
+        cfg.restart.waitForEmpty = true;
+        timer.request(cfg);
+        scheduler.advanceTo(0);
+        assertTrue(commands.isEmpty());
+        assertEquals(1, errors.size());
+        scheduler.advanceTo(1);
+        assertEquals(List.of("restart"), commands);
+    }
+
+    @Test
     public void respectsRestartSwitchAndBlankCommand() {
         Config cfg = config(10);
         cfg.postUpdate.runRestartCommand = false;
@@ -100,7 +152,7 @@ public class RestartCountdownTest {
     public void notificationSwitchEmptyTimesAndBlankMessageDoNotDisableRestart() {
         for (int mode = 0; mode < 3; mode++) {
             FakeScheduler clock = new FakeScheduler();
-            RestartCountdown timer = new RestartCountdown(clock, messages::add, commands::add, log);
+            RestartCountdown timer = new RestartCountdown(clock, messages::add, commands::add, () -> false, log);
             Config cfg = config(20);
             if (mode == 0) cfg.restart.notifications.enabled = false;
             if (mode == 1) cfg.restart.notifications.times = List.of();
@@ -179,7 +231,8 @@ public class RestartCountdownTest {
     public void notificationFailureDoesNotPreventRestartAndCommandFailureIsNotRetried() {
         RestartCountdown timer = new RestartCountdown(scheduler,
                 message -> { throw new IllegalStateException("disconnected"); },
-                command -> { commands.add(command); throw new IllegalStateException("unknown command"); }, log);
+            command -> { commands.add(command); throw new IllegalStateException("unknown command"); },
+            () -> false, log);
         timer.request(config(1));
         Runnable restart = scheduler.entries.get(1).action;
         scheduler.advanceTo(1);

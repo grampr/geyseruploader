@@ -94,6 +94,13 @@ public class ConfigManagerTest {
     }
 
     @Test
+    public void vacancyRequirementIsOptIn() throws Exception {
+        assertFalse(loadRestartConfig("enabled: true\n").restart.waitForEmpty);
+        assertTrue(loadRestartConfig("restart:\n  waitForEmpty: true\n").restart.waitForEmpty);
+        assertFalse(loadRestartConfig("restart:\n  waitForEmpty: false\n").restart.waitForEmpty);
+    }
+
+    @Test
     public void loadsCustomCountdownAndSanitizesTimes() throws Exception {
         Config cfg = loadRestartConfig("restart:\n  delay: 30\n  notifications:\n    enabled: true\n"
                 + "    times: [30, 5, 60, 5, -1, 0, abc, null, 2.5, true, '1']\n"

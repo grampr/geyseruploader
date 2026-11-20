@@ -29,6 +29,7 @@ postUpdate:
 restart:
   # 0で待機・通知なし。自動再起動はpostUpdate.runRestartCommandで有効化
   delay: 120
+  waitForEmpty: false
   notifications:
     enabled: true
     times: [120, 60, 30, 10, 5, 4, 3, 2, 1]
